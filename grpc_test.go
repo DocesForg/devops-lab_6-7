@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	employeev1 "github.com/DocesForg/devops-lab_6-7/gen/employee/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestGRPCEmployeeLifecycle(t *testing.T) {
@@ -31,39 +31,38 @@ func TestGRPCEmployeeLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
+	client := employeev1.NewEmployeeServiceClient(conn)
 
-	createRequest, _ := structpb.NewStruct(map[string]interface{}{
-		"full_name": "Иван Иванов", "position": "Инженер", "salary": 80000.0,
+	created, err := client.Create(ctx, &employeev1.CreateEmployeeRequest{
+		FullName: "Иван Иванов", Position: "Инженер", Salary: 80000,
 	})
-	createResponse := new(structpb.Struct)
-	if err := conn.Invoke(ctx, "/"+employeeGRPCServiceName+"/Create", createRequest, createResponse); err != nil {
+	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	id, ok := createResponse.AsMap()["id"].(string)
-	if !ok || id == "" {
-		t.Fatalf("Create response has no id: %v", createResponse.AsMap())
+	if created.GetId() == "" {
+		t.Fatal("Create response has no employee ID")
 	}
 
-	getRequest, _ := structpb.NewStruct(map[string]interface{}{"id": id})
-	getResponse := new(structpb.Struct)
-	if err := conn.Invoke(ctx, "/"+employeeGRPCServiceName+"/GetByID", getRequest, getResponse); err != nil {
+	got, err := client.GetByID(ctx, &employeev1.EmployeeIDRequest{Id: created.GetId()})
+	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
-	if got := getResponse.AsMap()["full_name"]; got != "Иван Иванов" {
-		t.Fatalf("unexpected full_name: %v", got)
+	if got.GetEmployee().GetFullName() != "Иван Иванов" {
+		t.Fatalf("unexpected full_name: %q", got.GetEmployee().GetFullName())
 	}
 
-	changeRequest, _ := structpb.NewStruct(map[string]interface{}{"id": id, "position": "Ведущий инженер"})
-	changeResponse := new(structpb.Struct)
-	if err := conn.Invoke(ctx, "/"+employeeGRPCServiceName+"/ChangePosition", changeRequest, changeResponse); err != nil {
+	_, err = client.ChangePosition(ctx, &employeev1.ChangePositionRequest{
+		Id: created.GetId(), Position: "Ведущий инженер",
+	})
+	if err != nil {
 		t.Fatalf("ChangePosition: %v", err)
 	}
 
-	getResponse = new(structpb.Struct)
-	if err := conn.Invoke(ctx, "/"+employeeGRPCServiceName+"/GetByID", getRequest, getResponse); err != nil {
+	got, err = client.GetByID(ctx, &employeev1.EmployeeIDRequest{Id: created.GetId()})
+	if err != nil {
 		t.Fatalf("GetByID after change: %v", err)
 	}
-	if got := getResponse.AsMap()["position"]; got != "Ведущий инженер" {
-		t.Fatalf("unexpected position after change: %v", got)
+	if got.GetEmployee().GetPosition() != "Ведущий инженер" {
+		t.Fatalf("unexpected position after change: %q", got.GetEmployee().GetPosition())
 	}
 }
