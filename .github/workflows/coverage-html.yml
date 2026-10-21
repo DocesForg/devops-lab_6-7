@@ -1,0 +1,49 @@
+name: Generate and publish coverage HTML
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - coverage.html
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  coverage-html:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests and collect coverage
+        run: go test ./... -coverprofile=coverage.out
+
+      - name: Generate HTML report
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Commit HTML report to Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage.html
+          if git diff --cached --quiet; then
+            echo "coverage.html has not changed"
+            exit 0
+          fi
+          git commit -m "chore: update Go coverage HTML report"
+          git push
