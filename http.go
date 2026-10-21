@@ -9,15 +9,24 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/go-kit/kit/endpoint"
 )
 
 type API struct {
-	service EmployeeService
-	logger  *log.Logger
+	createEndpoint        endpoint.Endpoint
+	getByIDEndpoint       endpoint.Endpoint
+	changePositionEndpoint endpoint.Endpoint
+	logger                *log.Logger
 }
 
 func NewHTTPHandler(service EmployeeService, logger *log.Logger) http.Handler {
-	api := &API{service: service, logger: logger}
+	api := &API{
+		createEndpoint: makeCreateEndpoint(service),
+		getByIDEndpoint: makeGetByIDEndpoint(service),
+		changePositionEndpoint: makeChangePositionEndpoint(service),
+		logger: logger,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.Trim(r.URL.Path, "/")
@@ -46,21 +55,21 @@ func (a *API) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	id, err := a.service.Create(r.Context(), e)
+	response, err := a.createEndpoint(r.Context(), e)
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"id": id})
+	writeJSON(w, http.StatusCreated, response)
 }
 
 func (a *API) getByID(w http.ResponseWriter, r *http.Request) {
-	e, err := a.service.GetByID(r.Context(), employeeID(r))
+	response, err := a.getByIDEndpoint(r.Context(), map[string]interface{}{"id": employeeID(r)})
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, e)
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (a *API) changePosition(w http.ResponseWriter, r *http.Request) {
@@ -69,11 +78,14 @@ func (a *API) changePosition(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if err := a.service.ChangePosition(r.Context(), employeeID(r), body.Position); err != nil {
+	response, err := a.changePositionEndpoint(r.Context(), map[string]interface{}{
+		"id": employeeID(r), "position": body.Position,
+	})
+	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	writeJSON(w, http.StatusOK, response)
 }
 
 func writeDomainError(w http.ResponseWriter, err error) {
