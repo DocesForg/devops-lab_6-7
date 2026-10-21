@@ -14,6 +14,7 @@ import (
 )
 
 type employeeGRPCServer struct {
+	employeev1.UnimplementedEmployeeServiceServer
 	create         *kitgrpc.Server
 	getByID        *kitgrpc.Server
 	changePosition *kitgrpc.Server
