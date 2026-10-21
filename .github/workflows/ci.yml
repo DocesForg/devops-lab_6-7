@@ -27,7 +27,9 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
-          cache-dependency-path: go.mod
+          cache-dependency-path: |
+            go.mod
+            go.sum
 
       - name: Resolve and verify module graph
         run: go mod tidy
@@ -65,6 +67,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: coverage.out
+          path: |
+            coverage.out
+            go.sum
           if-no-files-found: warn
           retention-days: 14
