@@ -11,16 +11,16 @@
 - Получение сотрудника: HTTP `GET /employees/{id}` и gRPC `EmployeeService/GetByID`.
 - Изменение должности: HTTP `PATCH /employees/{id}/position` и gRPC `EmployeeService/ChangePosition`.
 - Проверка работоспособности HTTP: `GET /healthz`.
-- Go kit endpoints и адаптеры HTTP/gRPC используют общий бизнес-сервис.
+- Go kit endpoints и HTTP/gRPC-транспорты используют общий бизнес-сервис.
 - HTTP слушает порт `8080`, gRPC — порт `9090`.
 - Хранилище находится в памяти процесса; данные не переживают перезапуск.
-- Логирование HTTP-запросов и корректное завершение обоих серверов.
+- Есть логирование HTTP-запросов и корректное завершение обоих серверов.
 
-Поля Employee: `id`, `full_name`, `position`, `salary`, `hired_on` (Unix timestamp). Контракт gRPC описан в `employee.proto`; Go-типы и клиент/серверный интерфейс генерируются `protoc` в `gen/employee/v1`.
+Поля Employee: `id`, `full_name`, `position`, `salary`, `hired_on` (Unix timestamp). Контракт gRPC описан в `employee.proto`; типизированные Go-типы и клиент/серверный интерфейс хранятся в `gen/employee/v1`.
 
 ## Запуск
 
-Требуется Go 1.26 или новее (для gosec CI дополнительно проверяется Go 1.27.1):
+Требуется Go 1.26 или новее.
 
 ```bash
 go mod tidy
@@ -86,15 +86,14 @@ grpcurl -plaintext -import-path . -proto employee.proto \
   localhost:9090 employee.v1.EmployeeService/ChangePosition
 ```
 
-gRPC использует типизированные protobuf-сообщения `CreateEmployeeRequest`, `EmployeeIDRequest`, `ChangePositionRequest` и соответствующие ответы. Код генерируется из `employee.proto` и хранится в `gen/employee/v1`.
-
-Для повторной генерации protobuf-кода локально нужны `protoc` и Go generators; затем выполните `make generate`. Workflow `Generate protobuf code` автоматически генерирует и коммитит обновлённые файлы при изменении `employee.proto`.
+Для повторной генерации protobuf-кода локально нужны `protoc` и Go generators; выполните `make generate`. Сгенерированные файлы хранятся в репозитории, отдельный GitHub Actions workflow для их автоматического коммита не используется.
 
 ## CI/CD (лабораторная №7, вариант 6)
 
-Workflow `.github/workflows/ci.yml` запускается на push/PR в `main` и вручную. Матрица использует поддерживаемые ветки Go 1.25.x и stable, выполняет сборку, тесты с race detector и coverage, `go vet`, `govulncheck` и `gosec`. Профиль покрытия сохраняется как artifact.
+Оставлены два workflow:
 
-Workflow `.github/workflows/docker.yml` собирает multi-stage Docker image. Публикация в Docker Hub выполняется при push, если заданы repository secrets `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`. Если секреты недоступны, workflow всё равно проверяет сборку образа, но явно пропускает публикацию. Имя образа приводится к допустимому нижнему регистру: `docesforg/devops-lab-6-7`.
+- `.github/workflows/ci.yml` запускается на push и pull request в `main`, а также вручную. Проверяет Go 1.27.1 и stable: сборку, тесты с race detector и coverage, `go vet`, `govulncheck` и `gosec`. Профиль покрытия сохраняется как artifact.
+- `.github/workflows/docker.yml` собирает multi-stage Docker image. Публикация в Docker Hub выполняется при push, если заданы repository secrets `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`. Без секретов образ проверяется сборкой, но не публикуется. Имя образа: `docesforg/devops-lab-6-7`.
 
 ## Отчёты
 
@@ -103,4 +102,4 @@ Workflow `.github/workflows/docker.yml` собирает multi-stage Docker imag
 
 ## Ограничения
 
-Хранилище in-memory очищается при перезапуске. Для эксплуатации нужны постоянное хранилище, аутентификация, авторизация и TLS для gRPC. gRPC использует protobuf `Struct` вместо типизированных сообщений.
+Хранилище in-memory очищается при перезапуске. Для эксплуатации нужны постоянное хранилище, аутентификация, авторизация и TLS для gRPC.
