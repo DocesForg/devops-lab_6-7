@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"net"
 
 	"github.com/go-kit/kit/endpoint"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
@@ -172,4 +173,8 @@ func (s *employeeGRPCServer) serve(ctx context.Context, handler *kitgrpc.Server,
 
 func registerEmployeeGRPCServer(server *grpc.Server, implementation *employeeGRPCServer) {
 	employeev1.RegisterEmployeeServiceServer(server, implementation)
+}
+
+func listenGRPC(address string) (net.Listener, error) {
+	return net.Listen("tcp", address)
 }
