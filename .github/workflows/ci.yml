@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.27.2', 'stable']
+        go-version: ['1.27.1', 'stable']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,23 +46,29 @@ jobs:
       - name: Static analysis (go vet)
         run: go vet ./...
 
+      # Keep the checks split between the two matrix jobs as required by the lab:
+      # govulncheck runs on stable; gosec runs on Go 1.27.1.
       - name: Install govulncheck
+        if: matrix.go-version == 'stable'
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Scan Go vulnerabilities
+        if: matrix.go-version == 'stable'
         run: $(go env GOPATH)/bin/govulncheck ./...
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        if: matrix.go-version == '1.27.1'
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 
       - name: Static security analysis (gosec)
+        if: matrix.go-version == '1.27.1'
         run: $(go env GOPATH)/bin/gosec -exclude-generated ./...
 
       - name: Upload coverage artifact
-        if: always()
+        if: always() && matrix.go-version == 'stable'
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-go-${{ matrix.go-version }}
+          name: coverage
           path: |
             coverage.out
             go.sum
