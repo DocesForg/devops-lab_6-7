@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -18,11 +18,23 @@ type API struct {
 func NewHTTPHandler(service EmployeeService, logger *log.Logger) http.Handler {
 	api := &API{service: service, logger: logger}
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /employees", api.create)
-	mux.HandleFunc("GET /employees/{id}", api.getByID)
-	mux.HandleFunc("PATCH /employees/{id}/position", api.changePosition)
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.Trim(r.URL.Path, "/")
+		switch {
+		case path == "healthz" && r.Method == http.MethodGet:
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		case path == "employees" && r.Method == http.MethodPost:
+			api.create(w, r)
+		case strings.HasPrefix(path, "employees/") && r.Method == http.MethodGet:
+			r = withEmployeeID(r, strings.TrimPrefix(path, "employees/"))
+			api.getByID(w, r)
+		case strings.HasPrefix(path, "employees/") && strings.HasSuffix(path, "/position") && r.Method == http.MethodPatch:
+			id := strings.TrimSuffix(strings.TrimPrefix(path, "employees/"), "/position")
+			r = withEmployeeID(r, id)
+			api.changePosition(w, r)
+		default:
+			writeError(w, http.StatusNotFound, "route not found")
+		}
 	})
 	return requestLogging(logger, mux)
 }
@@ -42,7 +54,7 @@ func (a *API) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) getByID(w http.ResponseWriter, r *http.Request) {
-	e, err := a.service.GetByID(r.Context(), r.PathValue("id"))
+	e, err := a.service.GetByID(r.Context(), employeeID(r))
 	if err != nil {
 		writeDomainError(w, err)
 		return
@@ -84,6 +96,17 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
+type employeeIDKey struct{}
+
+func withEmployeeID(r *http.Request, id string) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), employeeIDKey{}, id))
+}
+
+func employeeID(r *http.Request) string {
+	id, _ := r.Context().Value(employeeIDKey{}).(string)
+	return id
+}
+
 func requestLogging(logger *log.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -92,4 +115,3 @@ func requestLogging(logger *log.Logger, next http.Handler) http.Handler {
 	})
 }
 
-var _ = context.Background
