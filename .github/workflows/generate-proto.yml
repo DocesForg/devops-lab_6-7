@@ -33,11 +33,13 @@ jobs:
             --go_out=. --go_opt=module=github.com/DocesForg/devops-lab_6-7 \
             --go-grpc_out=. --go-grpc_opt=module=github.com/DocesForg/devops-lab_6-7 \
             employee.proto
+      - name: Resolve Go module checksums
+        run: go mod tidy
       - name: Commit generated Go code
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add gen/employee/v1/*.go
+          git add go.mod go.sum gen/employee/v1/*.go
           if git diff --cached --quiet; then
             echo "Generated protobuf code is already up to date."
           else
