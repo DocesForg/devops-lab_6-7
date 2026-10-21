@@ -16,7 +16,7 @@
 - Хранилище находится в памяти процесса; данные не переживают перезапуск.
 - Логирование HTTP-запросов и корректное завершение обоих серверов.
 
-Поля Employee: `id`, `full_name`, `position`, `salary`, `hired_on` (Unix timestamp). Контракт gRPC описан в `employee.proto`; сообщения запроса/ответа — protobuf `google.protobuf.Struct`.
+Поля Employee: `id`, `full_name`, `position`, `salary`, `hired_on` (Unix timestamp). Контракт gRPC описан в `employee.proto`; Go-типы и клиент/серверный интерфейс генерируются `protoc` в `gen/employee/v1`.
 
 ## Запуск
 
@@ -86,7 +86,9 @@ grpcurl -plaintext -import-path . -proto employee.proto \
   localhost:9090 employee.v1.EmployeeService/ChangePosition
 ```
 
-В этом контракте gRPC payload использует protobuf `Struct`, поэтому поля передаются как JSON-объект. При расширении API можно заменить `Struct` типизированными protobuf-сообщениями и добавить сгенерированный код.
+gRPC использует типизированные protobuf-сообщения `CreateEmployeeRequest`, `EmployeeIDRequest`, `ChangePositionRequest` и соответствующие ответы. Код генерируется из `employee.proto` и хранится в `gen/employee/v1`.
+
+Для повторной генерации protobuf-кода локально нужны `protoc` и Go generators; затем выполните `make generate`. Workflow `Generate protobuf code` автоматически генерирует и коммитит обновлённые файлы при изменении `employee.proto`.
 
 ## CI/CD (лабораторная №7, вариант 6)
 
