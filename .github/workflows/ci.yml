@@ -53,11 +53,11 @@ jobs:
         run: $(go env GOPATH)/bin/govulncheck ./...
 
       - name: Install gosec
-        if: matrix.go-version == 'stable'
+        if: matrix.go-version == '1.25.x'
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
 
       - name: Static security analysis (gosec)
-        if: matrix.go-version == 'stable'
+        if: matrix.go-version == '1.25.x'
         run: $(go env GOPATH)/bin/gosec ./...
 
       - name: Upload coverage artifact
