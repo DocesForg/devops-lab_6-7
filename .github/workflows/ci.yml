@@ -29,6 +29,9 @@ jobs:
           cache: true
           cache-dependency-path: go.mod
 
+      - name: Resolve and verify module graph
+        run: go mod tidy
+
       - name: Download dependencies
         run: go mod download
 
