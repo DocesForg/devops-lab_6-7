@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package employee.v1;
+
+option go_package = "github.com/DocesForg/devops-lab_6-7/gen/employee/v1;employeev1";
+
+import "google/protobuf/struct.proto";
+
+// EmployeeService is the gRPC transport contract for the employee service.
+// The request and response fields are carried in protobuf Struct messages.
+service EmployeeService {
+  rpc Create(google.protobuf.Struct) returns (google.protobuf.Struct);
+  rpc GetByID(google.protobuf.Struct) returns (google.protobuf.Struct);
+  rpc ChangePosition(google.protobuf.Struct) returns (google.protobuf.Struct);
+}
