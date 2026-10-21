@@ -23,7 +23,7 @@
 Требуется Go 1.25 или новее:
 
 ```bash
-go mod download
+go mod tidy
 go test -race ./...
 go vet ./...
 go run .
