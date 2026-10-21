@@ -4,12 +4,44 @@ package employee.v1;
 
 option go_package = "github.com/DocesForg/devops-lab_6-7/gen/employee/v1;employeev1";
 
-import "google/protobuf/struct.proto";
+message Employee {
+  string id = 1;
+  string full_name = 2;
+  string position = 3;
+  double salary = 4;
+  int64 hired_on = 5;
+}
 
-// EmployeeService is the gRPC transport contract for the employee service.
-// The request and response fields are carried in protobuf Struct messages.
+message CreateEmployeeRequest {
+  string full_name = 1;
+  string position = 2;
+  double salary = 3;
+  int64 hired_on = 4;
+}
+
+message EmployeeIDRequest {
+  string id = 1;
+}
+
+message ChangePositionRequest {
+  string id = 1;
+  string position = 2;
+}
+
+message CreateEmployeeResponse {
+  string id = 1;
+}
+
+message GetEmployeeResponse {
+  Employee employee = 1;
+}
+
+message ChangePositionResponse {
+  string status = 1;
+}
+
 service EmployeeService {
-  rpc Create(google.protobuf.Struct) returns (google.protobuf.Struct);
-  rpc GetByID(google.protobuf.Struct) returns (google.protobuf.Struct);
-  rpc ChangePosition(google.protobuf.Struct) returns (google.protobuf.Struct);
+  rpc Create(CreateEmployeeRequest) returns (CreateEmployeeResponse);
+  rpc GetByID(EmployeeIDRequest) returns (GetEmployeeResponse);
+  rpc ChangePosition(ChangePositionRequest) returns (ChangePositionResponse);
 }
