@@ -1,6 +1,6 @@
 module github.com/DocesForg/devops-lab_6-7
 
-go 1.24.0
+go 1.26.0
 
 require (
 	github.com/go-kit/kit v0.13.0
