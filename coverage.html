@@ -1,0 +1,1327 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>devops-lab_6-7: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/DocesForg/devops-lab_6-7/employee.go (89.2%)</option>
+				
+				<option value="file1">github.com/DocesForg/devops-lab_6-7/gen/employee/v1/employee.pb.go (0.0%)</option>
+				
+				<option value="file2">github.com/DocesForg/devops-lab_6-7/gen/employee/v1/employee_grpc.pb.go (0.0%)</option>
+				
+				<option value="file3">github.com/DocesForg/devops-lab_6-7/grpc.go (75.0%)</option>
+				
+				<option value="file4">github.com/DocesForg/devops-lab_6-7/http.go (50.0%)</option>
+				
+				<option value="file5">github.com/DocesForg/devops-lab_6-7/main.go (0.0%)</option>
+				
+				<option value="file6">github.com/DocesForg/devops-lab_6-7/service.go (80.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "errors"
+        "strings"
+        "sync"
+        "time"
+)
+
+var (
+        ErrNotFound = errors.New("employee not found")
+        ErrInvalid  = errors.New("invalid employee")
+)
+
+type Employee struct {
+        ID       string  `json:"id"`
+        FullName string  `json:"full_name"`
+        Position string  `json:"position"`
+        Salary   float64 `json:"salary"`
+        HiredOn  int64   `json:"hired_on"`
+}
+
+type EmployeeRepository interface {
+        Create(Employee) (string, error)
+        GetByID(string) (Employee, error)
+        ChangePosition(string, string) error
+}
+
+type MemoryRepository struct {
+        mu        sync.RWMutex
+        employees map[string]Employee
+        nextID    uint64
+}
+
+func NewMemoryRepository() *MemoryRepository {
+        <span class="cov8" title="1">return &amp;MemoryRepository{employees: make(map[string]Employee)}
+</span>}
+
+func (r *MemoryRepository) Create(e Employee) (string, error) {
+        <span class="cov8" title="1">if strings.TrimSpace(e.FullName) == "" || strings.TrimSpace(e.Position) == "" || e.Salary &lt; 0 </span>{
+                <span class="cov0" title="0">return "", ErrInvalid
+</span>        }
+        <span class="cov8" title="1">r.mu.Lock()
+        defer r.mu.Unlock()
+        r.nextID++
+        e.ID = formatID(r.nextID)
+        if e.HiredOn == 0 </span>{
+                <span class="cov8" title="1">e.HiredOn = time.Now().Unix()
+</span>        }
+        <span class="cov8" title="1">r.employees[e.ID] = e
+        return e.ID, nil</span>
+}
+
+func (r *MemoryRepository) GetByID(id string) (Employee, error) {
+        <span class="cov8" title="1">r.mu.RLock()
+        defer r.mu.RUnlock()
+        e, ok := r.employees[id]
+        if !ok </span>{
+                <span class="cov8" title="1">return Employee{}, ErrNotFound
+</span>        }
+        <span class="cov8" title="1">return e, nil</span>
+}
+
+func (r *MemoryRepository) ChangePosition(id, position string) error {
+        <span class="cov8" title="1">if strings.TrimSpace(position) == "" </span>{
+                <span class="cov0" title="0">return ErrInvalid
+</span>        }
+        <span class="cov8" title="1">r.mu.Lock()
+        defer r.mu.Unlock()
+        e, ok := r.employees[id]
+        if !ok </span>{
+                <span class="cov0" title="0">return ErrNotFound
+</span>        }
+        <span class="cov8" title="1">e.Position = position
+        r.employees[id] = e
+        return nil</span>
+}
+
+func formatID(n uint64) string {
+        <span class="cov8" title="1">const digits = "0123456789"
+        if n == 0 </span>{ <span class="cov0" title="0">return "0" }</span>
+        <span class="cov8" title="1">var buf [20]byte
+        i := len(buf)
+        for n &gt; 0 </span>{
+                <span class="cov8" title="1">i--
+                buf[i] = digits[n%10]
+                n /= 10
+</span>        }
+        <span class="cov8" title="1">return string(buf[i:])</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Code generated by protoc-gen-go. DO NOT EDIT.
+// versions:
+//         protoc-gen-go v1.36.6
+//         protoc        v3.21.12
+// source: employee.proto
+
+package employeev1
+
+import (
+        protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+        protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+        reflect "reflect"
+        sync "sync"
+        unsafe "unsafe"
+)
+
+const (
+        // Verify that this generated code is sufficiently up-to-date.
+        _ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
+        // Verify that runtime/protoimpl is sufficiently up-to-date.
+        _ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+)
+
+type Employee struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+        FullName      string                 `protobuf:"bytes,2,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+        Position      string                 `protobuf:"bytes,3,opt,name=position,proto3" json:"position,omitempty"`
+        Salary        float64                `protobuf:"fixed64,4,opt,name=salary,proto3" json:"salary,omitempty"`
+        HiredOn       int64                  `protobuf:"varint,5,opt,name=hired_on,json=hiredOn,proto3" json:"hired_on,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *Employee) Reset() {
+        <span class="cov0" title="0">*x = Employee{}
+        mi := &amp;file_employee_proto_msgTypes[0]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *Employee) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*Employee) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *Employee) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[0]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use Employee.ProtoReflect.Descriptor instead.
+func (*Employee) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{0}
+</span>}
+
+func (x *Employee) GetId() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Id
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *Employee) GetFullName() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.FullName
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *Employee) GetPosition() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Position
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *Employee) GetSalary() float64 {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Salary
+</span>        }
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *Employee) GetHiredOn() int64 {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.HiredOn
+</span>        }
+        <span class="cov0" title="0">return 0</span>
+}
+
+type CreateEmployeeRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        FullName      string                 `protobuf:"bytes,1,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+        Position      string                 `protobuf:"bytes,2,opt,name=position,proto3" json:"position,omitempty"`
+        Salary        float64                `protobuf:"fixed64,3,opt,name=salary,proto3" json:"salary,omitempty"`
+        HiredOn       int64                  `protobuf:"varint,4,opt,name=hired_on,json=hiredOn,proto3" json:"hired_on,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEmployeeRequest) Reset() {
+        <span class="cov0" title="0">*x = CreateEmployeeRequest{}
+        mi := &amp;file_employee_proto_msgTypes[1]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *CreateEmployeeRequest) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*CreateEmployeeRequest) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *CreateEmployeeRequest) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[1]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use CreateEmployeeRequest.ProtoReflect.Descriptor instead.
+func (*CreateEmployeeRequest) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{1}
+</span>}
+
+func (x *CreateEmployeeRequest) GetFullName() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.FullName
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *CreateEmployeeRequest) GetPosition() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Position
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *CreateEmployeeRequest) GetSalary() float64 {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Salary
+</span>        }
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *CreateEmployeeRequest) GetHiredOn() int64 {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.HiredOn
+</span>        }
+        <span class="cov0" title="0">return 0</span>
+}
+
+type EmployeeIDRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *EmployeeIDRequest) Reset() {
+        <span class="cov0" title="0">*x = EmployeeIDRequest{}
+        mi := &amp;file_employee_proto_msgTypes[2]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *EmployeeIDRequest) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*EmployeeIDRequest) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *EmployeeIDRequest) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[2]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use EmployeeIDRequest.ProtoReflect.Descriptor instead.
+func (*EmployeeIDRequest) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{2}
+</span>}
+
+func (x *EmployeeIDRequest) GetId() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Id
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+type ChangePositionRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+        Position      string                 `protobuf:"bytes,2,opt,name=position,proto3" json:"position,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangePositionRequest) Reset() {
+        <span class="cov0" title="0">*x = ChangePositionRequest{}
+        mi := &amp;file_employee_proto_msgTypes[3]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *ChangePositionRequest) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*ChangePositionRequest) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *ChangePositionRequest) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[3]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use ChangePositionRequest.ProtoReflect.Descriptor instead.
+func (*ChangePositionRequest) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{3}
+</span>}
+
+func (x *ChangePositionRequest) GetId() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Id
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *ChangePositionRequest) GetPosition() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Position
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+type CreateEmployeeResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEmployeeResponse) Reset() {
+        <span class="cov0" title="0">*x = CreateEmployeeResponse{}
+        mi := &amp;file_employee_proto_msgTypes[4]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *CreateEmployeeResponse) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*CreateEmployeeResponse) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *CreateEmployeeResponse) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[4]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use CreateEmployeeResponse.ProtoReflect.Descriptor instead.
+func (*CreateEmployeeResponse) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{4}
+</span>}
+
+func (x *CreateEmployeeResponse) GetId() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Id
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+type GetEmployeeResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Employee      *Employee              `protobuf:"bytes,1,opt,name=employee,proto3" json:"employee,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEmployeeResponse) Reset() {
+        <span class="cov0" title="0">*x = GetEmployeeResponse{}
+        mi := &amp;file_employee_proto_msgTypes[5]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *GetEmployeeResponse) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*GetEmployeeResponse) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *GetEmployeeResponse) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[5]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use GetEmployeeResponse.ProtoReflect.Descriptor instead.
+func (*GetEmployeeResponse) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{5}
+</span>}
+
+func (x *GetEmployeeResponse) GetEmployee() *Employee {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Employee
+</span>        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+type ChangePositionResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangePositionResponse) Reset() {
+        <span class="cov0" title="0">*x = ChangePositionResponse{}
+        mi := &amp;file_employee_proto_msgTypes[6]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+</span>}
+
+func (x *ChangePositionResponse) String() string {
+        <span class="cov0" title="0">return protoimpl.X.MessageStringOf(x)
+</span>}
+
+func (*ChangePositionResponse) ProtoMessage() {<span class="cov0" title="0"></span>}
+
+func (x *ChangePositionResponse) ProtoReflect() protoreflect.Message {
+        <span class="cov0" title="0">mi := &amp;file_employee_proto_msgTypes[6]
+        if x != nil </span>{
+                <span class="cov0" title="0">ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span>{
+                        <span class="cov0" title="0">ms.StoreMessageInfo(mi)
+</span>                }
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use ChangePositionResponse.ProtoReflect.Descriptor instead.
+func (*ChangePositionResponse) Descriptor() ([]byte, []int) {
+        <span class="cov0" title="0">return file_employee_proto_rawDescGZIP(), []int{6}
+</span>}
+
+func (x *ChangePositionResponse) GetStatus() string {
+        <span class="cov0" title="0">if x != nil </span>{
+                <span class="cov0" title="0">return x.Status
+</span>        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+var File_employee_proto protoreflect.FileDescriptor
+
+const file_employee_proto_rawDesc = "" +
+        "\n" +
+        "\x0eemployee.proto\x12\vemployee.v1\"\x86\x01\n" +
+        "\bEmployee\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+        "\tfull_name\x18\x02 \x01(\tR\bfullName\x12\x1a\n" +
+        "\bposition\x18\x03 \x01(\tR\bposition\x12\x16\n" +
+        "\x06salary\x18\x04 \x01(\x01R\x06salary\x12\x19\n" +
+        "\bhired_on\x18\x05 \x01(\x03R\ahiredOn\"\x83\x01\n" +
+        "\x15CreateEmployeeRequest\x12\x1b\n" +
+        "\tfull_name\x18\x01 \x01(\tR\bfullName\x12\x1a\n" +
+        "\bposition\x18\x02 \x01(\tR\bposition\x12\x16\n" +
+        "\x06salary\x18\x03 \x01(\x01R\x06salary\x12\x19\n" +
+        "\bhired_on\x18\x04 \x01(\x03R\ahiredOn\"#\n" +
+        "\x11EmployeeIDRequest\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\tR\x02id\"C\n" +
+        "\x15ChangePositionRequest\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+        "\bposition\x18\x02 \x01(\tR\bposition\"(\n" +
+        "\x16CreateEmployeeResponse\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\tR\x02id\"H\n" +
+        "\x13GetEmployeeResponse\x121\n" +
+        "\bemployee\x18\x01 \x01(\v2\x15.employee.v1.EmployeeR\bemployee\"0\n" +
+        "\x16ChangePositionResponse\x12\x16\n" +
+        "\x06status\x18\x01 \x01(\tR\x06status2\x8c\x02\n" +
+        "\x0fEmployeeService\x12Q\n" +
+        "\x06Create\x12\".employee.v1.CreateEmployeeRequest\x1a#.employee.v1.CreateEmployeeResponse\x12K\n" +
+        "\aGetByID\x12\x1e.employee.v1.EmployeeIDRequest\x1a .employee.v1.GetEmployeeResponse\x12Y\n" +
+        "\x0eChangePosition\x12\".employee.v1.ChangePositionRequest\x1a#.employee.v1.ChangePositionResponseB@Z&gt;github.com/DocesForg/devops-lab_6-7/gen/employee/v1;employeev1b\x06proto3"
+
+var (
+        file_employee_proto_rawDescOnce sync.Once
+        file_employee_proto_rawDescData []byte
+)
+
+func file_employee_proto_rawDescGZIP() []byte {
+        <span class="cov0" title="0">file_employee_proto_rawDescOnce.Do(func() </span>{
+                <span class="cov0" title="0">file_employee_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_employee_proto_rawDesc), len(file_employee_proto_rawDesc)))
+</span>        })
+        <span class="cov0" title="0">return file_employee_proto_rawDescData</span>
+}
+
+var file_employee_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_employee_proto_goTypes = []any{
+        (*Employee)(nil),               // 0: employee.v1.Employee
+        (*CreateEmployeeRequest)(nil),  // 1: employee.v1.CreateEmployeeRequest
+        (*EmployeeIDRequest)(nil),      // 2: employee.v1.EmployeeIDRequest
+        (*ChangePositionRequest)(nil),  // 3: employee.v1.ChangePositionRequest
+        (*CreateEmployeeResponse)(nil), // 4: employee.v1.CreateEmployeeResponse
+        (*GetEmployeeResponse)(nil),    // 5: employee.v1.GetEmployeeResponse
+        (*ChangePositionResponse)(nil), // 6: employee.v1.ChangePositionResponse
+}
+var file_employee_proto_depIdxs = []int32{
+        0, // 0: employee.v1.GetEmployeeResponse.employee:type_name -&gt; employee.v1.Employee
+        1, // 1: employee.v1.EmployeeService.Create:input_type -&gt; employee.v1.CreateEmployeeRequest
+        2, // 2: employee.v1.EmployeeService.GetByID:input_type -&gt; employee.v1.EmployeeIDRequest
+        3, // 3: employee.v1.EmployeeService.ChangePosition:input_type -&gt; employee.v1.ChangePositionRequest
+        4, // 4: employee.v1.EmployeeService.Create:output_type -&gt; employee.v1.CreateEmployeeResponse
+        5, // 5: employee.v1.EmployeeService.GetByID:output_type -&gt; employee.v1.GetEmployeeResponse
+        6, // 6: employee.v1.EmployeeService.ChangePosition:output_type -&gt; employee.v1.ChangePositionResponse
+        4, // [4:7] is the sub-list for method output_type
+        1, // [1:4] is the sub-list for method input_type
+        1, // [1:1] is the sub-list for extension type_name
+        1, // [1:1] is the sub-list for extension extendee
+        0, // [0:1] is the sub-list for field type_name
+}
+
+func init() { <span class="cov0" title="0">file_employee_proto_init() }</span>
+func file_employee_proto_init() {
+        <span class="cov0" title="0">if File_employee_proto != nil </span>{
+                <span class="cov0" title="0">return
+</span>        }
+        <span class="cov0" title="0">type x struct{}
+        out := protoimpl.TypeBuilder{
+                File: protoimpl.DescBuilder{
+                        GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+                        RawDescriptor: unsafe.Slice(unsafe.StringData(file_employee_proto_rawDesc), len(file_employee_proto_rawDesc)),
+                        NumEnums:      0,
+                        NumMessages:   7,
+                        NumExtensions: 0,
+                        NumServices:   1,
+                },
+                GoTypes:           file_employee_proto_goTypes,
+                DependencyIndexes: file_employee_proto_depIdxs,
+                MessageInfos:      file_employee_proto_msgTypes,
+        }.Build()
+        File_employee_proto = out.File
+        file_employee_proto_goTypes = nil
+        file_employee_proto_depIdxs = nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">// Code generated by protoc-gen-go-grpc. DO NOT EDIT.
+// versions:
+// - protoc-gen-go-grpc v1.5.1
+// - protoc             v3.21.12
+// source: employee.proto
+
+package employeev1
+
+import (
+        context "context"
+        grpc "google.golang.org/grpc"
+        codes "google.golang.org/grpc/codes"
+        status "google.golang.org/grpc/status"
+)
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.64.0 or later.
+const _ = grpc.SupportPackageIsVersion9
+
+const (
+        EmployeeService_Create_FullMethodName         = "/employee.v1.EmployeeService/Create"
+        EmployeeService_GetByID_FullMethodName        = "/employee.v1.EmployeeService/GetByID"
+        EmployeeService_ChangePosition_FullMethodName = "/employee.v1.EmployeeService/ChangePosition"
+)
+
+// EmployeeServiceClient is the client API for EmployeeService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type EmployeeServiceClient interface {
+        Create(ctx context.Context, in *CreateEmployeeRequest, opts ...grpc.CallOption) (*CreateEmployeeResponse, error)
+        GetByID(ctx context.Context, in *EmployeeIDRequest, opts ...grpc.CallOption) (*GetEmployeeResponse, error)
+        ChangePosition(ctx context.Context, in *ChangePositionRequest, opts ...grpc.CallOption) (*ChangePositionResponse, error)
+}
+
+type employeeServiceClient struct {
+        cc grpc.ClientConnInterface
+}
+
+func NewEmployeeServiceClient(cc grpc.ClientConnInterface) EmployeeServiceClient {
+        <span class="cov0" title="0">return &amp;employeeServiceClient{cc}
+</span>}
+
+func (c *employeeServiceClient) Create(ctx context.Context, in *CreateEmployeeRequest, opts ...grpc.CallOption) (*CreateEmployeeResponse, error) {
+        <span class="cov0" title="0">cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(CreateEmployeeResponse)
+        err := c.cc.Invoke(ctx, EmployeeService_Create_FullMethodName, in, out, cOpts...)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *employeeServiceClient) GetByID(ctx context.Context, in *EmployeeIDRequest, opts ...grpc.CallOption) (*GetEmployeeResponse, error) {
+        <span class="cov0" title="0">cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(GetEmployeeResponse)
+        err := c.cc.Invoke(ctx, EmployeeService_GetByID_FullMethodName, in, out, cOpts...)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *employeeServiceClient) ChangePosition(ctx context.Context, in *ChangePositionRequest, opts ...grpc.CallOption) (*ChangePositionResponse, error) {
+        <span class="cov0" title="0">cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(ChangePositionResponse)
+        err := c.cc.Invoke(ctx, EmployeeService_ChangePosition_FullMethodName, in, out, cOpts...)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+// EmployeeServiceServer is the server API for EmployeeService service.
+// All implementations must embed UnimplementedEmployeeServiceServer
+// for forward compatibility.
+type EmployeeServiceServer interface {
+        Create(context.Context, *CreateEmployeeRequest) (*CreateEmployeeResponse, error)
+        GetByID(context.Context, *EmployeeIDRequest) (*GetEmployeeResponse, error)
+        ChangePosition(context.Context, *ChangePositionRequest) (*ChangePositionResponse, error)
+        mustEmbedUnimplementedEmployeeServiceServer()
+}
+
+// UnimplementedEmployeeServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedEmployeeServiceServer struct{}
+
+func (UnimplementedEmployeeServiceServer) Create(context.Context, *CreateEmployeeRequest) (*CreateEmployeeResponse, error) {
+        <span class="cov0" title="0">return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
+</span>}
+func (UnimplementedEmployeeServiceServer) GetByID(context.Context, *EmployeeIDRequest) (*GetEmployeeResponse, error) {
+        <span class="cov0" title="0">return nil, status.Errorf(codes.Unimplemented, "method GetByID not implemented")
+</span>}
+func (UnimplementedEmployeeServiceServer) ChangePosition(context.Context, *ChangePositionRequest) (*ChangePositionResponse, error) {
+        <span class="cov0" title="0">return nil, status.Errorf(codes.Unimplemented, "method ChangePosition not implemented")
+</span>}
+func (UnimplementedEmployeeServiceServer) mustEmbedUnimplementedEmployeeServiceServer() {<span class="cov0" title="0"></span>}
+func (UnimplementedEmployeeServiceServer) testEmbeddedByValue()                         {<span class="cov0" title="0"></span>}
+
+// UnsafeEmployeeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to EmployeeServiceServer will
+// result in compilation errors.
+type UnsafeEmployeeServiceServer interface {
+        mustEmbedUnimplementedEmployeeServiceServer()
+}
+
+func RegisterEmployeeServiceServer(s grpc.ServiceRegistrar, srv EmployeeServiceServer) {
+        // If the following call pancis, it indicates UnimplementedEmployeeServiceServer was
+        // embedded by pointer and is nil.  This will cause panics if an
+        // unimplemented method is ever invoked, so we test this at initialization
+        // time to prevent it from happening at runtime later due to I/O.
+        <span class="cov0" title="0">if t, ok := srv.(interface{ testEmbeddedByValue() }); ok </span>{
+                <span class="cov0" title="0">t.testEmbeddedByValue()
+</span>        }
+        <span class="cov0" title="0">s.RegisterService(&amp;EmployeeService_ServiceDesc, srv)</span>
+}
+
+func _EmployeeService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+        <span class="cov0" title="0">in := new(CreateEmployeeRequest)
+        if err := dec(in); err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov0" title="0">if interceptor == nil </span>{
+                <span class="cov0" title="0">return srv.(EmployeeServiceServer).Create(ctx, in)
+</span>        }
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: EmployeeService_Create_FullMethodName,
+</span>        }
+        <span class="cov0" title="0">handler := func(ctx context.Context, req interface{}) (interface{}, error) </span>{
+                <span class="cov0" title="0">return srv.(EmployeeServiceServer).Create(ctx, req.(*CreateEmployeeRequest))
+</span>        }
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _EmployeeService_GetByID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+        <span class="cov0" title="0">in := new(EmployeeIDRequest)
+        if err := dec(in); err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov0" title="0">if interceptor == nil </span>{
+                <span class="cov0" title="0">return srv.(EmployeeServiceServer).GetByID(ctx, in)
+</span>        }
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: EmployeeService_GetByID_FullMethodName,
+</span>        }
+        <span class="cov0" title="0">handler := func(ctx context.Context, req interface{}) (interface{}, error) </span>{
+                <span class="cov0" title="0">return srv.(EmployeeServiceServer).GetByID(ctx, req.(*EmployeeIDRequest))
+</span>        }
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _EmployeeService_ChangePosition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+        <span class="cov0" title="0">in := new(ChangePositionRequest)
+        if err := dec(in); err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov0" title="0">if interceptor == nil </span>{
+                <span class="cov0" title="0">return srv.(EmployeeServiceServer).ChangePosition(ctx, in)
+</span>        }
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: EmployeeService_ChangePosition_FullMethodName,
+</span>        }
+        <span class="cov0" title="0">handler := func(ctx context.Context, req interface{}) (interface{}, error) </span>{
+                <span class="cov0" title="0">return srv.(EmployeeServiceServer).ChangePosition(ctx, req.(*ChangePositionRequest))
+</span>        }
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+// EmployeeService_ServiceDesc is the grpc.ServiceDesc for EmployeeService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var EmployeeService_ServiceDesc = grpc.ServiceDesc{
+        ServiceName: "employee.v1.EmployeeService",
+        HandlerType: (*EmployeeServiceServer)(nil),
+        Methods: []grpc.MethodDesc{
+                {
+                        MethodName: "Create",
+                        Handler:    _EmployeeService_Create_Handler,
+                },
+                {
+                        MethodName: "GetByID",
+                        Handler:    _EmployeeService_GetByID_Handler,
+                },
+                {
+                        MethodName: "ChangePosition",
+                        Handler:    _EmployeeService_ChangePosition_Handler,
+                },
+        },
+        Streams:  []grpc.StreamDesc{},
+        Metadata: "employee.proto",
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package main
+
+import (
+        "context"
+        "errors"
+        "net"
+
+        "github.com/go-kit/kit/endpoint"
+        kitgrpc "github.com/go-kit/kit/transport/grpc"
+        employeev1 "github.com/DocesForg/devops-lab_6-7/gen/employee/v1"
+        "google.golang.org/grpc"
+        "google.golang.org/grpc/codes"
+        "google.golang.org/grpc/status"
+)
+
+type employeeGRPCServer struct {
+        employeev1.UnimplementedEmployeeServiceServer
+        create         *kitgrpc.Server
+        getByID        *kitgrpc.Server
+        changePosition *kitgrpc.Server
+}
+
+func newEmployeeGRPCServer(service EmployeeService) *employeeGRPCServer {
+        <span class="cov8" title="1">return &amp;employeeGRPCServer{
+                create: kitgrpc.NewServer(
+                        makeCreateEndpoint(service),
+                        decodeCreateGRPCRequest,
+                        encodeCreateGRPCResponse,
+                ),
+                getByID: kitgrpc.NewServer(
+                        makeGetByIDEndpoint(service),
+                        decodeGetByIDGRPCRequest,
+                        encodeGetByIDGRPCResponse,
+                ),
+                changePosition: kitgrpc.NewServer(
+                        makeChangePositionEndpoint(service),
+                        decodeChangePositionGRPCRequest,
+                        encodeChangePositionGRPCResponse,
+                ),
+</span>        }
+}
+
+func makeCreateEndpoint(service EmployeeService) endpoint.Endpoint {
+        <span class="cov8" title="1">return func(ctx context.Context, request interface{}) (interface{}, error) </span>{
+                <span class="cov8" title="1">e := request.(Employee)
+                id, err := service.Create(ctx, e)
+                if err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
+</span>                }
+                <span class="cov8" title="1">return map[string]interface{}{"id": id}, nil</span>
+        }
+}
+
+func makeGetByIDEndpoint(service EmployeeService) endpoint.Endpoint {
+        <span class="cov8" title="1">return func(ctx context.Context, request interface{}) (interface{}, error) </span>{
+                <span class="cov8" title="1">id := request.(map[string]interface{})["id"].(string)
+                e, err := service.GetByID(ctx, id)
+                if err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
+</span>                }
+                <span class="cov8" title="1">return e, nil</span>
+        }
+}
+
+func makeChangePositionEndpoint(service EmployeeService) endpoint.Endpoint {
+        <span class="cov8" title="1">return func(ctx context.Context, request interface{}) (interface{}, error) </span>{
+                <span class="cov8" title="1">values := request.(map[string]interface{})
+                id, _ := values["id"].(string)
+                position, _ := values["position"].(string)
+                if err := service.ChangePosition(ctx, id, position); err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
+</span>                }
+                <span class="cov8" title="1">return map[string]interface{}{"status": "updated"}, nil</span>
+        }
+}
+
+func decodeCreateGRPCRequest(_ context.Context, request interface{}) (interface{}, error) {
+        <span class="cov8" title="1">req, ok := request.(*employeev1.CreateEmployeeRequest)
+        if !ok || req == nil </span>{
+                <span class="cov0" title="0">return nil, status.Error(codes.InvalidArgument, "invalid create request")
+</span>        }
+        <span class="cov8" title="1">return Employee{
+                FullName: req.GetFullName(),
+                Position: req.GetPosition(),
+                Salary:   req.GetSalary(),
+                HiredOn:  req.GetHiredOn(),
+        }, nil</span>
+}
+
+func decodeGetByIDGRPCRequest(_ context.Context, request interface{}) (interface{}, error) {
+        <span class="cov8" title="1">req, ok := request.(*employeev1.EmployeeIDRequest)
+        if !ok || req == nil </span>{
+                <span class="cov0" title="0">return nil, status.Error(codes.InvalidArgument, "invalid employee ID request")
+</span>        }
+        <span class="cov8" title="1">return map[string]interface{}{"id": req.GetId()}, nil</span>
+}
+
+func decodeChangePositionGRPCRequest(_ context.Context, request interface{}) (interface{}, error) {
+        <span class="cov8" title="1">req, ok := request.(*employeev1.ChangePositionRequest)
+        if !ok || req == nil </span>{
+                <span class="cov0" title="0">return nil, status.Error(codes.InvalidArgument, "invalid change-position request")
+</span>        }
+        <span class="cov8" title="1">return map[string]interface{}{"id": req.GetId(), "position": req.GetPosition()}, nil</span>
+}
+
+func encodeCreateGRPCResponse(_ context.Context, response interface{}) (interface{}, error) {
+        <span class="cov8" title="1">values := response.(map[string]interface{})
+        return &amp;employeev1.CreateEmployeeResponse{Id: values["id"].(string)}, nil
+</span>}
+
+func encodeGetByIDGRPCResponse(_ context.Context, response interface{}) (interface{}, error) {
+        <span class="cov8" title="1">e := response.(Employee)
+        return &amp;employeev1.GetEmployeeResponse{Employee: &amp;employeev1.Employee{
+                Id: e.ID, FullName: e.FullName, Position: e.Position,
+                Salary: e.Salary, HiredOn: e.HiredOn,
+        }}, nil
+</span>}
+
+func encodeChangePositionGRPCResponse(_ context.Context, response interface{}) (interface{}, error) {
+        <span class="cov8" title="1">values := response.(map[string]interface{})
+        return &amp;employeev1.ChangePositionResponse{Status: values["status"].(string)}, nil
+</span>}
+
+func (s *employeeGRPCServer) Create(ctx context.Context, request *employeev1.CreateEmployeeRequest) (*employeev1.CreateEmployeeResponse, error) {
+        <span class="cov8" title="1">response, err := s.serve(ctx, s.create, request)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov8" title="1">result, ok := response.(*employeev1.CreateEmployeeResponse)
+        if !ok </span>{
+                <span class="cov0" title="0">return nil, status.Error(codes.Internal, "invalid response type")
+</span>        }
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (s *employeeGRPCServer) GetByID(ctx context.Context, request *employeev1.EmployeeIDRequest) (*employeev1.GetEmployeeResponse, error) {
+        <span class="cov8" title="1">response, err := s.serve(ctx, s.getByID, request)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov8" title="1">result, ok := response.(*employeev1.GetEmployeeResponse)
+        if !ok </span>{
+                <span class="cov0" title="0">return nil, status.Error(codes.Internal, "invalid response type")
+</span>        }
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (s *employeeGRPCServer) ChangePosition(ctx context.Context, request *employeev1.ChangePositionRequest) (*employeev1.ChangePositionResponse, error) {
+        <span class="cov8" title="1">response, err := s.serve(ctx, s.changePosition, request)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov8" title="1">result, ok := response.(*employeev1.ChangePositionResponse)
+        if !ok </span>{
+                <span class="cov0" title="0">return nil, status.Error(codes.Internal, "invalid response type")
+</span>        }
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (s *employeeGRPCServer) serve(ctx context.Context, handler *kitgrpc.Server, request interface{}) (interface{}, error) {
+        <span class="cov8" title="1">_, response, err := handler.ServeGRPC(ctx, request)
+        if err != nil </span>{
+                <span class="cov0" title="0">switch </span>{
+                case errors.Is(err, ErrInvalid):
+                        <span class="cov0" title="0">return nil, status.Error(codes.InvalidArgument, err.Error())</span>
+                case errors.Is(err, ErrNotFound):
+                        <span class="cov0" title="0">return nil, status.Error(codes.NotFound, err.Error())</span>
+                default:
+                        <span class="cov0" title="0">return nil, status.Error(codes.Internal, "internal server error")</span>
+                }
+        }
+        <span class="cov8" title="1">return response, nil</span>
+}
+
+func registerEmployeeGRPCServer(server *grpc.Server, implementation *employeeGRPCServer) {
+        <span class="cov8" title="1">employeev1.RegisterEmployeeServiceServer(server, implementation)
+</span>}
+
+func listenGRPC(address string) (net.Listener, error) {
+        <span class="cov0" title="0">return net.Listen("tcp", address)
+</span>}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package main
+
+import (
+        "encoding/json"
+        "bytes"
+        "context"
+        "errors"
+        "log"
+        "net/http"
+        "strings"
+        "time"
+
+        "github.com/go-kit/kit/endpoint"
+)
+
+type API struct {
+        createEndpoint        endpoint.Endpoint
+        getByIDEndpoint       endpoint.Endpoint
+        changePositionEndpoint endpoint.Endpoint
+        logger                *log.Logger
+}
+
+func NewHTTPHandler(service EmployeeService, logger *log.Logger) http.Handler {
+        <span class="cov8" title="1">api := &amp;API{
+                createEndpoint: makeCreateEndpoint(service),
+                getByIDEndpoint: makeGetByIDEndpoint(service),
+                changePositionEndpoint: makeChangePositionEndpoint(service),
+                logger: logger,
+</span>        }
+        <span class="cov8" title="1">mux := http.NewServeMux()
+        mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) </span>{
+                <span class="cov8" title="1">path := strings.Trim(r.URL.Path, "/")
+                switch </span>{
+                case path == "healthz" &amp;&amp; r.Method == http.MethodGet:
+                        <span class="cov0" title="0">writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})</span>
+                case path == "employees" &amp;&amp; r.Method == http.MethodPost:
+                        <span class="cov8" title="1">api.create(w, r)</span>
+                case strings.HasPrefix(path, "employees/") &amp;&amp; r.Method == http.MethodGet:
+                        <span class="cov8" title="1">r = withEmployeeID(r, strings.TrimPrefix(path, "employees/"))
+                        api.getByID(w, r)</span>
+                case strings.HasPrefix(path, "employees/") &amp;&amp; strings.HasSuffix(path, "/position") &amp;&amp; r.Method == http.MethodPatch:
+                        <span class="cov0" title="0">id := strings.TrimSuffix(strings.TrimPrefix(path, "employees/"), "/position")
+                        r = withEmployeeID(r, id)
+                        api.changePosition(w, r)</span>
+                default:
+                        <span class="cov0" title="0">writeError(w, http.StatusNotFound, "route not found")</span>
+                }
+        })
+        <span class="cov8" title="1">return requestLogging(logger, mux)</span>
+}
+
+func (a *API) create(w http.ResponseWriter, r *http.Request) {
+        <span class="cov8" title="1">var e Employee
+        if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1&lt;&lt;20)).Decode(&amp;e); err != nil </span>{
+                <span class="cov0" title="0">writeError(w, http.StatusBadRequest, "invalid JSON body")
+                return
+</span>        }
+        <span class="cov8" title="1">response, err := a.createEndpoint(r.Context(), e)
+        if err != nil </span>{
+                <span class="cov0" title="0">writeDomainError(w, err)
+                return
+</span>        }
+        <span class="cov8" title="1">writeJSON(w, http.StatusCreated, response)</span>
+}
+
+func (a *API) getByID(w http.ResponseWriter, r *http.Request) {
+        <span class="cov8" title="1">response, err := a.getByIDEndpoint(r.Context(), map[string]interface{}{"id": employeeID(r)})
+        if err != nil </span>{
+                <span class="cov0" title="0">writeDomainError(w, err)
+                return
+</span>        }
+        <span class="cov8" title="1">writeJSON(w, http.StatusOK, response)</span>
+}
+
+func (a *API) changePosition(w http.ResponseWriter, r *http.Request) {
+        <span class="cov0" title="0">var body struct { Position string `json:"position"` }
+        if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1&lt;&lt;20)).Decode(&amp;body); err != nil </span>{
+                <span class="cov0" title="0">writeError(w, http.StatusBadRequest, "invalid JSON body")
+                return
+</span>        }
+        <span class="cov0" title="0">response, err := a.changePositionEndpoint(r.Context(), map[string]interface{}{
+                "id": employeeID(r), "position": body.Position,
+        })
+        if err != nil </span>{
+                <span class="cov0" title="0">writeDomainError(w, err)
+                return
+</span>        }
+        <span class="cov0" title="0">writeJSON(w, http.StatusOK, response)</span>
+}
+
+func writeDomainError(w http.ResponseWriter, err error) {
+        <span class="cov0" title="0">switch </span>{
+        case errors.Is(err, ErrNotFound):
+                <span class="cov0" title="0">writeError(w, http.StatusNotFound, err.Error())</span>
+        case errors.Is(err, ErrInvalid):
+                <span class="cov0" title="0">writeError(w, http.StatusBadRequest, err.Error())</span>
+        default:
+                <span class="cov0" title="0">writeError(w, http.StatusInternalServerError, "internal server error")</span>
+        }
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+        <span class="cov0" title="0">writeJSON(w, status, map[string]string{"error": message})
+</span>}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+        <span class="cov8" title="1">var payload bytes.Buffer
+        if err := json.NewEncoder(&amp;payload).Encode(value); err != nil </span>{
+                <span class="cov0" title="0">http.Error(w, "internal server error", http.StatusInternalServerError)
+                return
+</span>        }
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json; charset=utf-8")
+        w.WriteHeader(status)
+        if _, err := w.Write(payload.Bytes()); err != nil </span>{
+                <span class="cov0" title="0">log.Printf("failed to write HTTP response: %v", err)
+</span>        }
+}
+
+type employeeIDKey struct{}
+
+func withEmployeeID(r *http.Request, id string) *http.Request {
+        <span class="cov8" title="1">return r.WithContext(context.WithValue(r.Context(), employeeIDKey{}, id))
+</span>}
+
+func employeeID(r *http.Request) string {
+        <span class="cov8" title="1">id, _ := r.Context().Value(employeeIDKey{}).(string)
+        return id
+</span>}
+
+func requestLogging(logger *log.Logger, next http.Handler) http.Handler {
+        <span class="cov8" title="1">return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span>{
+                <span class="cov8" title="1">start := time.Now()
+                next.ServeHTTP(w, r)
+                if logger != nil </span>{ <span class="cov0" title="0">logger.Printf("method=%s path=%s duration=%s", r.Method, strings.TrimSpace(r.URL.Path), time.Since(start)) }</span>
+        })
+}
+
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package main
+
+import (
+        "context"
+        "errors"
+        "flag"
+        "log"
+        "net/http"
+        "os"
+        "os/signal"
+        "syscall"
+        "time"
+
+        "google.golang.org/grpc"
+)
+
+func main() {
+        <span class="cov0" title="0">httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
+        grpcAddr := flag.String("grpc.addr", ":9090", "gRPC listen address")
+        flag.Parse()
+</span>
+        <span class="cov0" title="0">logger := log.New(os.Stdout, "employee-service ", log.LstdFlags|log.LUTC)
+        repo := NewMemoryRepository()
+        service := NewEmployeeService(repo)
+</span>
+        <span class="cov0" title="0">grpcListener, err := listenGRPC(*grpcAddr)
+        if err != nil </span>{
+                <span class="cov0" title="0">logger.Fatalf("gRPC listen: %v", err)
+</span>        }
+        <span class="cov0" title="0">grpcServer := grpc.NewServer()
+        registerEmployeeGRPCServer(grpcServer, newEmployeeGRPCServer(service))
+</span>
+        <span class="cov0" title="0">httpServer := &amp;http.Server{
+                Addr: *httpAddr, Handler: NewHTTPHandler(service, logger),
+                ReadHeaderTimeout: 5 * time.Second,
+</span>        }
+
+        <span class="cov0" title="0">ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+        defer stop()
+</span>
+        <span class="cov0" title="0">go func() </span>{
+                <span class="cov0" title="0">logger.Printf("HTTP server listening on %s", *httpAddr)
+                if err := httpServer.ListenAndServe(); err != nil &amp;&amp; !errors.Is(err, http.ErrServerClosed) </span>{
+                        <span class="cov0" title="0">logger.Printf("HTTP server: %v", err)
+                        stop()
+</span>                }
+        }()
+        <span class="cov0" title="0">go func() </span>{
+                <span class="cov0" title="0">logger.Printf("gRPC server listening on %s", *grpcAddr)
+                if err := grpcServer.Serve(grpcListener); err != nil </span>{
+                        <span class="cov0" title="0">logger.Printf("gRPC server: %v", err)
+                        stop()
+</span>                }
+        }()
+
+        <span class="cov0" title="0">&lt;-ctx.Done()
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+        if err := httpServer.Shutdown(shutdownCtx); err != nil </span>{
+                <span class="cov0" title="0">logger.Printf("HTTP graceful shutdown failed: %v", err)
+</span>        }
+        <span class="cov0" title="0">grpcDone := make(chan struct{})
+        go func() </span>{
+                <span class="cov0" title="0">grpcServer.GracefulStop()
+                close(grpcDone)
+</span>        }()
+        <span class="cov0" title="0">select </span>{
+        case &lt;-grpcDone:<span class="cov0" title="0"></span>
+        case &lt;-shutdownCtx.Done():
+                <span class="cov0" title="0">grpcServer.Stop()</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package main
+
+import (
+        "context"
+        "strings"
+)
+
+type EmployeeService interface {
+        Create(context.Context, Employee) (string, error)
+        GetByID(context.Context, string) (Employee, error)
+        ChangePosition(context.Context, string, string) error
+}
+
+type employeeService struct {
+        repo EmployeeRepository
+}
+
+func NewEmployeeService(repo EmployeeRepository) EmployeeService {
+        <span class="cov8" title="1">return &amp;employeeService{repo: repo}
+</span>}
+
+func (s *employeeService) Create(_ context.Context, e Employee) (string, error) {
+        <span class="cov8" title="1">e.FullName = strings.TrimSpace(e.FullName)
+        e.Position = strings.TrimSpace(e.Position)
+        return s.repo.Create(e)
+</span>}
+
+func (s *employeeService) GetByID(_ context.Context, id string) (Employee, error) {
+        <span class="cov8" title="1">if strings.TrimSpace(id) == "" </span>{ <span class="cov0" title="0">return Employee{}, ErrInvalid }</span>
+        <span class="cov8" title="1">return s.repo.GetByID(id)</span>
+}
+
+func (s *employeeService) ChangePosition(_ context.Context, id, position string) error {
+        <span class="cov8" title="1">if strings.TrimSpace(id) == "" || strings.TrimSpace(position) == "" </span>{ <span class="cov0" title="0">return ErrInvalid }</span>
+        <span class="cov8" title="1">return s.repo.ChangePosition(id, strings.TrimSpace(position))</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
