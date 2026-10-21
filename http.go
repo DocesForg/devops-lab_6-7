@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"bytes"
 	"context"
 	"errors"
 	"log"
@@ -91,9 +92,16 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(value); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	if _, err := w.Write(payload.Bytes()); err != nil {
+		log.Printf("failed to write HTTP response: %v", err)
+	}
 }
 
 type employeeIDKey struct{}
