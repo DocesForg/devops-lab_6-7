@@ -42,6 +42,8 @@ jobs:
             echo "Generated protobuf code is already up to date."
           else
             git commit -m "Generate protobuf Go code"
+            git fetch origin main
+            git rebase origin/main
             git push
           fi
       - name: Upload generated Go files
