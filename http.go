@@ -68,7 +68,7 @@ func (a *API) changePosition(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if err := a.service.ChangePosition(r.Context(), r.PathValue("id"), body.Position); err != nil {
+	if err := a.service.ChangePosition(r.Context(), employeeID(r), body.Position); err != nil {
 		writeDomainError(w, err)
 		return
 	}
