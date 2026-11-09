@@ -1,38 +1,24 @@
 # Лабораторная работа №8. Основы Docker
 
 **Вариант:** 6 — «Свой микросервис + PostgreSQL»  
-**Репозиторий:** [DocesForg/devops-lab_6-7](https://github.com/DocesForg/devops-lab_6-7)  
-**Сервис:** Employee Service (Go)
+**Проект:** Employee Service (Go)  
+**Репозиторий:** [DocesForg/devops-lab_6-7](https://github.com/DocesForg/devops-lab_6-7)
 
 ## Цель работы
 
-Изучить основы Docker, освоить управление образами и контейнерами, публикацию портов, подключение томов и настройку сетевого взаимодействия. Подготовить микросервис из лабораторной работы №6 к запуску в контейнере и рассмотреть его совместное развёртывание с PostgreSQL.
+Изучить принципы работы Docker, освоить управление контейнерами, портами, томами и сетями, научиться запускать готовые образы и подготовить собственный микросервис к контейнеризации.
 
 ## 1. Исходный микросервис
 
-В качестве приложения используется Employee Service, разработанный ранее. Сервис предоставляет операции над сотрудниками:
+В качестве приложения используется Employee Service, разработанный в лабораторной работе №6. Он предоставляет операции создания сотрудника, получения сотрудника по идентификатору и изменения должности. Для взаимодействия доступны HTTP API на порту 8080 и gRPC API на порту 9090.
 
-- создание сотрудника;
-- получение сотрудника по идентификатору;
-- изменение должности сотрудника;
-- проверка состояния HTTP-сервера.
+Архитектура разделена на транспортный, сервисный и репозиторный слои. HTTP- и gRPC-транспорты используют общие Go kit endpoints и бизнес-сервис. Для хранения данных реализованы два репозитория: `MemoryRepository` и `PostgresRepository`. В рамках варианта 6 контейнер приложения подключается к PostgreSQL.
 
-Для взаимодействия доступны два транспорта:
+## 2. Установка и проверка Docker
 
-| Интерфейс | Адрес внутри контейнера | Назначение |
-|---|---:|---|
-| HTTP | 8080 | REST API |
-| gRPC | 9090 | RPC API |
+Для выполнения работы используется Docker Desktop с включённым WSL 2 backend (Windows) либо Docker Engine (Linux).
 
-В проекте используется Go kit: HTTP- и gRPC-транспорты обращаются к общему сервисному слою через endpoints. Доступ к данным вынесен за интерфейс `EmployeeRepository`.
-
-**Важно о текущем состоянии исходного кода:** на ветке `main` метод `main.go` создаёт `NewMemoryRepository()`. Это хранилище находится в оперативной памяти процесса. В текущей версии репозитория PostgreSQL-реализация репозитория и чтение параметров подключения к БД ещё не добавлены. Поэтому запуск PostgreSQL-контейнера сам по себе не означает, что приложение использует БД. Этот пункт отмечен отдельно, чтобы результаты отчёта соответствовали фактическому состоянию кода.
-
-## 2. Подготовка Docker
-
-Для выполнения практической части используется Docker Desktop с включённым WSL 2 backend (Windows) либо установленный Docker Engine (Linux).
-
-Проверка доступности Docker:
+Проверка:
 
 ```powershell
 docker version
@@ -40,35 +26,153 @@ docker info
 docker run hello-world
 ```
 
-Команда `docker version` должна показать сведения о клиенте и сервере Docker. Команда `hello-world` проверяет, что Docker может загрузить образ и запустить контейнер.
+Команда `docker version` должна показать сведения о клиенте и сервере Docker. При первом запуске `hello-world` Docker загружает образ, создаёт контейнер и выводит сообщение об успешном запуске.
 
-**Скриншот 1 — проверка Docker и запуск hello-world**
+**Скриншот 1 — docker version и docker run hello-world**
 
 > СКРИНШОТ ЗДЕСЬ
 
-## 3. Сборка образа микросервиса
+## 3. Работа с образами
 
-В корне репозитория находится `Dockerfile`. Он использует многостадийную сборку:
-
-1. На стадии `builder` используется образ `golang:1.27-alpine`, копируются исходный код и файлы Go-модуля, затем компилируется исполняемый файл.
-2. На финальной стадии используется компактный образ `alpine:3.22`. В него копируется только собранный бинарный файл и сертификаты.
-3. Приложение запускается от непривилегированного пользователя `app`.
-4. Объявлены порты 8080 (HTTP) и 9090 (gRPC).
-
-Сборка выполняется из корня репозитория:
+Загрузка образов nginx и PostgreSQL:
 
 ```powershell
-docker build -t employee-service:v1 .
-```
-
-Проверка результата:
-
-```powershell
+docker pull nginx
+docker pull nginx:1.25-alpine
+docker pull postgres:16
 docker images
-docker image inspect employee-service:v1
+docker inspect nginx:latest
 ```
 
-Файл `.dockerignore` исключает из контекста сборки каталог Git, GitHub Actions, файл покрытия и Markdown-документы:
+Для демонстрации того, что используемый контейнером образ нельзя удалить, запускается nginx:
+
+```powershell
+docker run -d --name test-nginx nginx
+docker rmi nginx
+```
+
+Docker сообщит, что образ используется контейнером. После проверки контейнер и дополнительный тег можно удалить:
+
+```powershell
+docker rm -f test-nginx
+docker rmi nginx:1.25-alpine
+```
+
+**Скриншот 2 — docker images после загрузки nginx**
+
+> СКРИНШОТ ЗДЕСЬ
+
+## 4. Управление контейнерами
+
+Запуск nginx в фоновом режиме и проверка его состояния:
+
+```powershell
+docker run -d --name my-nginx nginx
+docker ps
+docker ps -a
+docker logs my-nginx
+docker logs -f my-nginx
+```
+
+Остановка, повторный запуск и удаление:
+
+```powershell
+docker stop my-nginx
+docker start my-nginx
+docker restart my-nginx
+docker stop my-nginx
+docker rm my-nginx
+```
+
+Ключ `-d` запускает контейнер в фоне, а `--name` задаёт ему удобное имя. Команда `docker logs` показывает стандартный вывод контейнера.
+
+**Скриншот 3 — docker ps и docker logs my-nginx**
+
+> СКРИНШОТ ЗДЕСЬ
+
+## 5. Публикация портов и работа внутри контейнера
+
+Запуск веб-сервера nginx с публикацией внутреннего порта 80 на порт 8080 хоста:
+
+```powershell
+docker run -d --name web -p 8080:80 nginx
+docker port web
+curl.exe http://localhost:8080
+docker exec web hostname
+docker inspect web
+```
+
+Параметр `-p 8080:80` означает, что обращения к порту 8080 хоста перенаправляются на порт 80 контейнера. Команда `docker exec` позволяет выполнить команду внутри работающего контейнера.
+
+**Скриншот 4 — открытие nginx через localhost:8080 и docker exec web hostname**
+
+> СКРИНШОТ ЗДЕСЬ
+
+## 6. Тома Docker и сохранение данных PostgreSQL
+
+Создание именованного тома и запуск PostgreSQL 16:
+
+```powershell
+docker volume create pgdata
+docker run -d --name pg-test -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=testdb -v pgdata:/var/lib/postgresql/data -p 5432:5432 postgres:16
+docker volume ls
+docker volume inspect pgdata
+```
+
+Создание таблицы и тестовой записи:
+
+```powershell
+docker exec -it pg-test psql -U postgres -d testdb
+```
+
+В консоли PostgreSQL:
+
+```sql
+CREATE TABLE volume_check (
+    id SERIAL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+INSERT INTO volume_check (value) VALUES ('volume survives container removal');
+SELECT * FROM volume_check;
+\q
+```
+
+Удаление контейнера и повторный запуск с тем же томом:
+
+```powershell
+docker rm -f pg-test
+docker run -d --name pg-test -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=testdb -v pgdata:/var/lib/postgresql/data -p 5432:5432 postgres:16
+docker exec pg-test psql -U postgres -d testdb -c "SELECT * FROM volume_check;"
+```
+
+Таблица и запись сохраняются, потому что файлы базы данных расположены в именованном томе Docker, жизненный цикл которого не зависит от контейнера.
+
+**Скриншот 5 — docker volume inspect pgdata и запись после пересоздания контейнера**
+
+> СКРИНШОТ ЗДЕСЬ
+
+## 7. Сети Docker
+
+Создание пользовательской bridge-сети и запуск nginx в ней:
+
+```powershell
+docker network create mynet
+docker run -d --name nginx1 --network mynet nginx
+docker run --rm --network mynet alpine:3.22 sh -c "apk add --no-cache curl && curl http://nginx1"
+docker network inspect mynet
+```
+
+Пользовательская bridge-сеть предоставляет DNS: контейнеры могут обращаться друг к другу по именам. Это надёжнее, чем фиксировать IP-адреса контейнеров.
+
+**Скриншот 6 — docker network inspect mynet и запрос к nginx1 по имени**
+
+> СКРИНШОТ ЗДЕСЬ
+
+## 8. Собственный образ микросервиса
+
+Для сборки используется Dockerfile проекта. Он реализует многостадийную сборку: на первом этапе компилируется Go-приложение, на финальный образ копируется только бинарный файл и сертификаты. Контейнер запускается от непривилегированного пользователя. Порты 8080 и 9090 доступны для HTTP и gRPC.
+
+В корне проекта создан файл `.dockerignore`:
 
 ```text
 .git
@@ -77,39 +181,81 @@ coverage.out
 *.md
 ```
 
-Это уменьшает объём данных, передаваемых Docker daemon при сборке, и не включает в образ файлы, не нужные для запуска приложения.
+Он исключает из контекста сборки Git-метаданные, конфигурацию GitHub Actions, файл покрытия и Markdown-документы. Это сокращает передаваемый контекст и не позволяет ненужным файлам попадать в сборку.
 
-**Скриншот 2 — сборка образа и вывод docker images**
+Сборка и запуск:
+
+```powershell
+docker build -t employee-service:v1 .
+docker images
+docker run -d --name employee-api -p 8080:8080 -p 9090:9090 employee-service:v1
+curl.exe http://localhost:8080/healthz
+```
+
+Проверка API:
+
+```powershell
+curl.exe -i -X POST http://localhost:8080/employees -H "Content-Type: application/json" -d "{\"full_name\":\"Ivan Ivanov\",\"position\":\"Engineer\",\"salary\":80000}"
+curl.exe http://localhost:8080/employees/1
+```
+
+Для сравнения контекста сборки можно временно выполнить сборку с отдельным пустым файлом исключений и сравнить строки `transferring context` в выводе `docker build`. Размер готового образа смотрят через `docker images employee-service`. Сам .dockerignore влияет прежде всего на контекст сборки; он не гарантирует уменьшение размера финального образа, если исключённые файлы и так не копируются в Dockerfile.
+
+**Скриншот 7 — сборка employee-service и проверка HTTP API**
 
 > СКРИНШОТ ЗДЕСЬ
 
-## 4. Запуск контейнера и проверка API
+## 9. Индивидуальное задание. Вариант 6 — микросервис + PostgreSQL
 
-Запуск контейнера с публикацией обоих портов:
+### 9.1. Реализация PostgreSQL-репозитория
+
+В проект добавлен файл `postgres.go` с реализацией интерфейса `EmployeeRepository` на базе `database/sql` и драйвера `github.com/lib/pq`.
+
+Реализованы операции:
+
+- подключение к PostgreSQL;
+- автоматическое создание таблицы `employees` при инициализации репозитория;
+- добавление сотрудника с возвратом сгенерированного ID;
+- получение сотрудника по ID;
+- изменение должности;
+- преобразование ситуации отсутствующей записи в `ErrNotFound`.
+
+Параметры подключения задаются переменными окружения: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_SSLMODE`. Если `DB_HOST` не задан, для локального запуска без БД используется `MemoryRepository`. В контейнерном сценарии задаётся `DB_HOST=db`.
+
+При запуске приложение ожидает доступности PostgreSQL до 45 секунд, затем создаёт репозиторий и таблицу. Таким образом, таблица создаётся приложением автоматически, без ручного SQL.
+
+### 9.2. Развёртывание двух контейнеров в одной сети
+
+Для воспроизводимого запуска добавлен `compose.yaml`. Он описывает два сервиса:
+
+- `db` — PostgreSQL 16 с именем контейнера `employee-db`, healthcheck и именованным томом `employee-db-data`;
+- `api` — Employee Service, собираемый из Dockerfile. Он подключается к PostgreSQL по DNS-имени `db`.
+
+Оба сервиса находятся в пользовательской сети `appnet`. Публикуются HTTP-порт 8080 и gRPC-порт 9090 приложения. Порт PostgreSQL не требуется публиковать на хост для взаимодействия контейнеров.
+
+Запуск из корня репозитория:
 
 ```powershell
-docker run -d --name employee-api -p 8080:8080 -p 9090:9090 employee-service:v1
+docker compose up --build -d
+docker compose ps
+docker compose logs api
 ```
 
-Проверка состояния и логов:
-
-```powershell
-docker ps
-docker logs employee-api
-docker port employee-api
-```
-
-Проверка HTTP health endpoint:
+Проверка, что API отвечает:
 
 ```powershell
 curl.exe http://localhost:8080/healthz
 ```
 
-Ожидаемый ответ:
+Проверка доступности PostgreSQL из той же сети:
 
-```json
-{"status":"ok"}
+```powershell
+docker run --rm --network devops-lab_6-7_appnet postgres:16 pg_isready -h db -p 5432 -U employee_user -d employees
 ```
+
+Если имя сети отличается, его можно узнать командой `docker network ls`.
+
+### 9.3. Проверка чтения и записи через API
 
 Создание сотрудника:
 
@@ -117,7 +263,7 @@ curl.exe http://localhost:8080/healthz
 curl.exe -i -X POST http://localhost:8080/employees -H "Content-Type: application/json" -d "{\"full_name\":\"Ivan Ivanov\",\"position\":\"Engineer\",\"salary\":80000}"
 ```
 
-В ответе возвращается идентификатор созданного сотрудника. Его следует подставить в запрос получения:
+В ответе возвращается ID. Получение записи (в примере ID равен 1; используйте фактическое значение из ответа):
 
 ```powershell
 curl.exe http://localhost:8080/employees/1
@@ -129,159 +275,67 @@ curl.exe http://localhost:8080/employees/1
 curl.exe -i -X PATCH http://localhost:8080/employees/1/position -H "Content-Type: application/json" -d "{\"position\":\"Senior Engineer\"}"
 ```
 
-Идентификатор в примерах приведён для случая, когда это первая созданная запись. В реальном запуске необходимо использовать ID из ответа на POST.
+Проверка записи непосредственно в PostgreSQL:
 
-**Скриншот 3 — работа контейнера и проверка HTTP API**
+```powershell
+docker compose exec db psql -U employee_user -d employees -c "SELECT id, full_name, position, salary, hired_on FROM employees;"
+```
+
+Таким образом, запись создаётся через HTTP API, сохраняется в PostgreSQL и читается тем же микросервисом через репозиторий.
+
+**Скриншот 8 — успешный запуск db и api в одной сети**
 
 > СКРИНШОТ ЗДЕСЬ
 
-## 5. Создание Docker-сети
-
-Для связи приложения и PostgreSQL создаётся пользовательская bridge-сеть:
-
-```powershell
-docker network create appnet
-docker network ls
-docker network inspect appnet
-```
-
-Пользовательская сеть позволяет контейнерам обращаться друг к другу по имени контейнера благодаря встроенному DNS Docker. Поэтому приложению следует указывать адрес БД как `db:5432`, а не использовать `localhost`: внутри контейнера `localhost` указывает на сам контейнер приложения.
-
-**Скриншот 4 — созданная сеть appnet**
+**Скриншот 9 — создание и чтение сотрудника через API**
 
 > СКРИНШОТ ЗДЕСЬ
 
-## 6. Запуск PostgreSQL с постоянным томом
-
-Для хранения данных PostgreSQL создаётся именованный том:
-
-```powershell
-docker volume create employee-db-data
-docker volume ls
-```
-
-Запуск PostgreSQL 16 в сети `appnet` под именем `db`:
-
-```powershell
-docker run -d --name db --network appnet -e POSTGRES_DB=employees -e POSTGRES_USER=employee_user -e POSTGRES_PASSWORD=change_me -v employee-db-data:/var/lib/postgresql/data -p 5432:5432 postgres:16
-```
-
-Проверка запуска:
-
-```powershell
-docker ps
-docker logs db
-docker volume inspect employee-db-data
-```
-
-Подключение к БД и создание таблицы:
-
-```powershell
-docker exec -it db psql -U employee_user -d employees
-```
-
-SQL-команды в консоли PostgreSQL:
-
-```sql
-CREATE TABLE employees (
-    id BIGSERIAL PRIMARY KEY,
-    full_name TEXT NOT NULL,
-    position TEXT NOT NULL,
-    salary NUMERIC(12, 2) NOT NULL CHECK (salary >= 0),
-    hired_on BIGINT NOT NULL
-);
-
-INSERT INTO employees (full_name, position, salary, hired_on)
-VALUES ('Ivan Ivanov', 'Engineer', 80000, EXTRACT(EPOCH FROM NOW())::BIGINT);
-
-SELECT * FROM employees;
-\q
-```
-
-Именованный том хранит файлы БД вне жизненного цикла контейнера. При удалении и повторном создании контейнера с тем же томом данные должны сохраниться.
-
-Проверка сохранности данных:
-
-```powershell
-docker rm -f db
-docker run -d --name db --network appnet -e POSTGRES_DB=employees -e POSTGRES_USER=employee_user -e POSTGRES_PASSWORD=change_me -v employee-db-data:/var/lib/postgresql/data -p 5432:5432 postgres:16
-docker exec db psql -U employee_user -d employees -c "SELECT * FROM employees;"
-```
-
-**Скриншот 5 — PostgreSQL, таблица employees и сохранение записи после пересоздания контейнера**
+**Скриншот 10 — SELECT из PostgreSQL с записью, созданной через API**
 
 > СКРИНШОТ ЗДЕСЬ
 
-## 7. Подключение микросервиса к PostgreSQL
+### 9.4. Проверка сохранности данных
 
-По условию варианта 6 приложение должно использовать PostgreSQL через слой репозитория. В проекте уже определён интерфейс `EmployeeRepository`, поэтому для выполнения требования необходимо добавить реализацию этого интерфейса на основе PostgreSQL и передавать её в `NewEmployeeService` вместо `NewMemoryRepository()`.
-
-Параметры подключения следует получать из переменных окружения, например:
-
-| Переменная | Значение для Docker-сети |
-|---|---|
-| DB_HOST | `db` |
-| DB_PORT | `5432` |
-| DB_NAME | `employees` |
-| DB_USER | `employee_user` |
-| DB_PASSWORD | пароль, заданный при запуске PostgreSQL |
-
-После добавления PostgreSQL-репозитория контейнер приложения должен запускаться в той же сети:
+Остановка и удаление контейнеров без удаления тома:
 
 ```powershell
-docker run -d --name api --network appnet -p 8080:8080 -p 9090:9090 -e DB_HOST=db -e DB_PORT=5432 -e DB_NAME=employees -e DB_USER=employee_user -e DB_PASSWORD=change_me employee-service:v1
+docker compose down
+docker compose up -d
+docker compose exec db psql -U employee_user -d employees -c "SELECT * FROM employees;"
 ```
 
-Проверка DNS-разрешения имени БД из контейнера приложения (если в образ приложения добавлена утилита `nslookup` или `ping`, либо используется отдельный диагностический контейнер):
+Данные сохраняются, так как PostgreSQL хранит файлы БД в named volume `employee-db-data`. Команда `docker compose down` удаляет контейнеры и сеть, но не именованный том. Удаление данных выполняется отдельно через `docker compose down -v`.
 
-```powershell
-docker run --rm --network appnet alpine:3.22 sh -c "apk add --no-cache bind-tools >/dev/null && nslookup db"
-```
-
-Проверка сетевого подключения к PostgreSQL:
-
-```powershell
-docker run --rm --network appnet postgres:16 pg_isready -h db -p 5432 -U employee_user -d employees
-```
-
-**Статус выполнения этого пункта в текущей версии репозитория:** команды демонстрируют настройку контейнеров и сети, но приложение пока не использует указанные переменные окружения и продолжает создавать in-memory репозиторий. Для полного соответствия варианту необходимо реализовать PostgreSQL-репозиторий, пересобрать образ и повторить проверку создания и получения сотрудника через API с подтверждением записи SQL-запросом в PostgreSQL.
-
-**Скриншот 6 — проверка доступности PostgreSQL из сети appnet**
+**Скриншот 11 — запись в таблице после пересоздания контейнеров**
 
 > СКРИНШОТ ЗДЕСЬ
 
-**Скриншот 7 — создание сотрудника через API и проверка записи в PostgreSQL**
+## 10. Проверка и очистка ресурсов
 
-> СКРИНШОТ ЗДЕСЬ
-
-## 8. Очистка ресурсов
-
-После завершения проверки можно остановить и удалить контейнеры:
-
-```powershell
-docker rm -f employee-api
-docker rm -f db
-docker network rm appnet
-```
-
-Том `employee-db-data` намеренно не удаляется, чтобы сохранить данные. Если данные больше не нужны, том можно удалить отдельно:
-
-```powershell
-docker volume rm employee-db-data
-```
-
-Просмотр использования дискового пространства:
+Проверка занимаемого Docker пространства:
 
 ```powershell
 docker system df
 ```
 
-**Скриншот 8 — использование дискового пространства Docker**
+Очистка контейнеров, образов и сетей, созданных в работе:
+
+```powershell
+docker compose down
+docker rm -f web nginx1 2>$null
+docker network rm mynet 2>$null
+docker rm -f pg-test 2>$null
+docker volume rm pgdata
+docker system df
+```
+
+Не следует использовать `docker system prune -a --volumes` без необходимости: эта команда может удалить неиспользуемые тома с данными.
+
+**Скриншот 12 — docker system df до и после очистки**
 
 > СКРИНШОТ ЗДЕСЬ
 
-## 9. Вывод
+## 11. Вывод
 
-В ходе работы рассмотрена контейнеризация Go-микросервиса Employee Service. Изучены сборка Docker-образа, публикация HTTP- и gRPC-портов, запуск и диагностика контейнеров, создание пользовательской сети и именованного тома PostgreSQL. Рассмотрен способ организации связи приложения с БД по DNS-имени контейнера `db` и сохранения данных при пересоздании контейнера.
-
-В исходной версии проекта используется `MemoryRepository`, поэтому интеграция PostgreSQL на уровне приложения остаётся необходимым этапом для полного выполнения индивидуального задания варианта 6. Сам факт запуска PostgreSQL-контейнера не подтверждает выполнение операций чтения и записи через репозиторий микросервиса.
+В ходе лабораторной работы изучены основные операции Docker: загрузка образов, запуск и управление контейнерами, публикация портов, выполнение команд внутри контейнера, использование томов и пользовательских сетей. Микросервис Employee Service подготовлен к контейнеризации и запускается совместно с PostgreSQL в общей сети. Реализован PostgreSQL-репозиторий с автоматическим созданием таблицы и операциями создания, чтения и изменения сотрудника. Данные PostgreSQL сохраняются в именованном томе при пересоздании контейнера.
