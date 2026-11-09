@@ -16,7 +16,7 @@
 
 ## 2. Установка и проверка Docker
 
-Для выполнения работы используется Docker Desktop с включённым WSL 2 backend (Windows) либо Docker Engine (Linux).
+Все команды на компьютере выполняются в **Windows PowerShell** (Windows 10/11) при запущенном Docker Desktop с включённым WSL 2 backend. Команды `sh`, `psql` и `apk` в отдельных примерах выполняются внутри Linux-контейнеров Docker — устанавливать Linux или запускать Linux-терминал на Windows не требуется.
 
 Проверка:
 
