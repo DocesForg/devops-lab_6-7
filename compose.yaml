@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16
+    container_name: employee-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: employees
+      POSTGRES_USER: employee_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_local}
+    volumes:
+      - employee-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U employee_user -d employees"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - appnet
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: employee-service:v1
+    container_name: employee-api
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: employees
+      DB_USER: employee_user
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_local}
+      DB_SSLMODE: disable
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - appnet
+
+volumes:
+  employee-db-data:
+
+networks:
+  appnet:
+    driver: bridge
