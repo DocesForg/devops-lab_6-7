@@ -1,0 +1,95 @@
+name: Docker integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile"
+      - "compose.yaml"
+      - ".github/workflows/docker-integration.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start application and PostgreSQL
+        run: docker compose up --build -d
+
+      - name: Wait for API
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://localhost:8080/healthz; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+
+      - name: Create and read employee through HTTP API
+        id: employee
+        run: |
+          response=$(curl --fail --silent --show-error \
+            -X POST http://localhost:8080/employees \
+            -H 'Content-Type: application/json' \
+            -d '{"full_name":"Docker Integration","position":"Engineer","salary":65000}')
+          echo "$response"
+          employee_id=$(echo "$response" | jq -r .id)
+          test -n "$employee_id"
+          test "$employee_id" != "null"
+          echo "id=$employee_id" >> "$GITHUB_OUTPUT"
+
+          employee=$(curl --fail --silent --show-error "http://localhost:8080/employees/$employee_id")
+          echo "$employee"
+          echo "$employee" | jq -e '.full_name == "Docker Integration" and .position == "Engineer"'
+
+      - name: Update employee and verify database row
+        env:
+          EMPLOYEE_ID: ${{ steps.employee.outputs.id }}
+        run: |
+          curl --fail --silent --show-error -X PATCH \
+            "http://localhost:8080/employees/$EMPLOYEE_ID/position" \
+            -H 'Content-Type: application/json' \
+            -d '{"position":"Senior Engineer"}'
+          docker compose exec -T db psql -U employee_user -d employees -v ON_ERROR_STOP=1 \
+            -c "SELECT id, full_name, position, salary FROM employees WHERE id = $EMPLOYEE_ID;"
+          row=$(docker compose exec -T db psql -U employee_user -d employees -At \
+            -c "SELECT position FROM employees WHERE id = $EMPLOYEE_ID;")
+          test "$row" = "Senior Engineer"
+
+      - name: Recreate containers and verify volume persistence
+        env:
+          EMPLOYEE_ID: ${{ steps.employee.outputs.id }}
+        run: |
+          docker compose down
+          docker compose up -d
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://localhost:8080/healthz >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          row=$(docker compose exec -T db psql -U employee_user -d employees -At \
+            -c "SELECT position FROM employees WHERE id = $EMPLOYEE_ID;")
+          test "$row" = "Senior Engineer"
+          echo "PostgreSQL data survived container recreation."
+
+      - name: Show diagnostics on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
