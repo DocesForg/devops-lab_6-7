@@ -250,7 +250,7 @@ curl.exe http://localhost:8080/healthz
 Проверка доступности PostgreSQL из той же сети:
 
 ```powershell
-docker run --rm --network devops-lab_6-7_appnet postgres:16 pg_isready -h db -p 5432 -U employee_user -d employees
+docker run --rm --network appnet postgres:16 pg_isready -h db -p 5432 -U employee_user -d employees
 ```
 
 Если имя сети отличается, его можно узнать командой `docker network ls`.
