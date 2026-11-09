@@ -1,6 +1,6 @@
-# DevOps: лабораторные работы 6–7
+# DevOps: лабораторные работы 6–8
 
-Вариант 6: микросервис сотрудников (Employee) и CI/CD с проверками безопасности.
+Вариант 6: микросервис сотрудников (Employee), CI/CD и контейнерное развёртывание с PostgreSQL.
 
 [![CI](https://github.com/DocesForg/devops-lab_6-7/actions/workflows/ci.yml/badge.svg)](https://github.com/DocesForg/devops-lab_6-7/actions/workflows/ci.yml)
 [![Docker](https://github.com/DocesForg/devops-lab_6-7/actions/workflows/docker.yml/badge.svg)](https://github.com/DocesForg/devops-lab_6-7/actions/workflows/docker.yml)
@@ -10,15 +10,14 @@
 - Создание сотрудника: HTTP `POST /employees` и gRPC `EmployeeService/Create`.
 - Получение сотрудника: HTTP `GET /employees/{id}` и gRPC `EmployeeService/GetByID`.
 - Изменение должности: HTTP `PATCH /employees/{id}/position` и gRPC `EmployeeService/ChangePosition`.
-- Проверка работоспособности HTTP: `GET /healthz`.
+- Проверка HTTP-состояния: `GET /healthz`.
 - Go kit endpoints и HTTP/gRPC-транспорты используют общий бизнес-сервис.
 - HTTP слушает порт `8080`, gRPC — порт `9090`.
-- Хранилище находится в памяти процесса; данные не переживают перезапуск.
-- Есть логирование HTTP-запросов и корректное завершение обоих серверов.
+- Реализованы два хранилища: `MemoryRepository` для локального запуска без настроенной БД и `PostgresRepository` для постоянного хранения.
+- PostgreSQL-репозиторий автоматически создаёт таблицу `employees` при подключении.
+- Есть логирование HTTP-запросов и корректное завершение серверов.
 
-Поля Employee: `id`, `full_name`, `position`, `salary`, `hired_on` (Unix timestamp). Контракт gRPC описан в `employee.proto`; типизированные Go-типы и клиент/серверный интерфейс хранятся в `gen/employee/v1`.
-
-## Запуск
+## Запуск без PostgreSQL
 
 Требуется Go 1.26 или новее.
 
@@ -29,10 +28,70 @@ go vet ./...
 go run .
 ```
 
-По умолчанию HTTP-сервер слушает `:8080`, а gRPC — `:9090`. Адреса можно изменить:
+Если переменная `DB_HOST` не задана, приложение использует in-memory хранилище. Данные в нём теряются при перезапуске.
+
+## Запуск с PostgreSQL (лабораторная №8, вариант 6)
+
+Рекомендуемый способ — Docker Compose. Он создаёт общую сеть, запускает PostgreSQL с именем `db`, сохраняет данные в named volume и запускает API после прохождения healthcheck БД.
 
 ```bash
-go run . -http.addr=:8081 -grpc.addr=:9091
+docker compose up --build -d
+docker compose ps
+docker compose logs api
+```
+
+По умолчанию для локальной учебной среды используется пароль `change_me_local`. Для изменения задайте `DB_PASSWORD` в окружении перед запуском.
+
+Проверить API:
+
+```bash
+curl http://localhost:8080/healthz
+curl -i -X POST http://localhost:8080/employees \
+  -H 'Content-Type: application/json' \
+  -d '{"full_name":"Ivan Ivanov","position":"Engineer","salary":80000}'
+```
+
+Используйте полученный из POST идентификатор:
+
+```bash
+curl http://localhost:8080/employees/1
+curl -i -X PATCH http://localhost:8080/employees/1/position \
+  -H 'Content-Type: application/json' \
+  -d '{"position":"Senior Engineer"}'
+```
+
+Проверить, что данные действительно записаны в PostgreSQL:
+
+```bash
+docker compose exec db psql -U employee_user -d employees \
+  -c "SELECT id, full_name, position, salary, hired_on FROM employees;"
+```
+
+Проверить сетевое имя БД из отдельного контейнера в той же сети:
+
+```bash
+docker run --rm --network devops-lab_6-7_appnet postgres:16 \
+  pg_isready -h db -p 5432 -U employee_user -d employees
+```
+
+Если Compose создал сеть с другим именем, узнайте его командой `docker network ls`.
+
+Проверить сохранность данных после пересоздания контейнеров:
+
+```bash
+docker compose down
+docker compose up -d
+docker compose exec db psql -U employee_user -d employees -c "SELECT * FROM employees;"
+```
+
+Named volume `employee-db-data` не удаляется командой `docker compose down`, поэтому данные остаются. Для полного удаления вместе с данными используйте `docker compose down -v`.
+
+Для ручного запуска приложение поддерживает переменные `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` и `DB_SSLMODE`. В Docker-сети значение `DB_HOST` должно быть равно имени контейнера PostgreSQL — `db`, а не `localhost`.
+
+PostgreSQL integration test запускается при наличии `TEST_DATABASE_URL`:
+
+```bash
+TEST_DATABASE_URL="host=localhost port=5432 dbname=employees user=employee_user password=change_me_local sslmode=disable" go test -run TestPostgresRepositoryCRUD -v
 ```
 
 ## HTTP-примеры
@@ -45,7 +104,7 @@ curl -i -X POST http://localhost:8080/employees \
   -d '{"full_name":"Иван Иванов","position":"Инженер","salary":80000}'
 ```
 
-Получить сотрудника (подставьте ID из ответа):
+Получить сотрудника:
 
 ```bash
 curl http://localhost:8080/employees/1
@@ -59,47 +118,32 @@ curl -i -X PATCH http://localhost:8080/employees/1/position \
   -d '{"position":"Ведущий инженер"}'
 ```
 
-Проверить HTTP health endpoint:
-
-```bash
-curl http://localhost:8080/healthz
-```
-
 ## gRPC-примеры
 
-Для вызовов установите `grpcurl`. Команды используют файл контракта из репозитория; серверу не требуется включать reflection:
+Для вызовов установите `grpcurl`. Серверу не требуется включать reflection:
 
 ```bash
 grpcurl -plaintext -import-path . -proto employee.proto \
-  -d '{"full_name":"Иван Иванов","position":"Инженер","salary":80000}' \
+  -d '{"full_name":"Ivan Ivanov","position":"Engineer","salary":80000}' \
   localhost:9090 employee.v1.EmployeeService/Create
 ```
-
-Используйте полученный `id` в последующих запросах:
 
 ```bash
 grpcurl -plaintext -import-path . -proto employee.proto \
   -d '{"id":"1"}' localhost:9090 employee.v1.EmployeeService/GetByID
 
 grpcurl -plaintext -import-path . -proto employee.proto \
-  -d '{"id":"1","position":"Ведущий инженер"}' \
+  -d '{"id":"1","position":"Senior Engineer"}' \
   localhost:9090 employee.v1.EmployeeService/ChangePosition
 ```
 
-Для повторной генерации protobuf-кода локально нужны `protoc` и Go generators; выполните `make generate`. Сгенерированные файлы хранятся в репозитории, отдельный GitHub Actions workflow для их автоматического коммита не используется.
+## CI/CD (лабораторная №7)
 
-## CI/CD (лабораторная №7, вариант 6)
-
-Оставлены два workflow:
-
-- `.github/workflows/ci.yml` запускается на push и pull request в `main`, а также вручную. Проверяет Go 1.27.1 и stable: сборку, тесты с race detector и coverage, `go vet`, `govulncheck` и `gosec`. Профиль покрытия сохраняется как artifact.
-- `.github/workflows/docker.yml` собирает multi-stage Docker image. Публикация в Docker Hub выполняется при push, если заданы repository secrets `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`. Без секретов образ проверяется сборкой, но не публикуется. Имя образа: `docesforg/devops-lab-6-7`.
+- `.github/workflows/ci.yml` проверяет сборку, тесты с race detector, coverage, `go vet`, `govulncheck` и `gosec`.
+- `.github/workflows/docker.yml` собирает multi-stage Docker image и публикует его в Docker Hub при наличии secrets `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`.
 
 ## Отчёты
 
 - [Лабораторная работа №6](l6.md)
 - [Лабораторная работа №7](l7.md)
-
-## Ограничения
-
-Хранилище in-memory очищается при перезапуске. Для эксплуатации нужны постоянное хранилище, аутентификация, авторизация и TLS для gRPC.
+- [Отчёт по Docker (вариант 6)](lab6.md)
