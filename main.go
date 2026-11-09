@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -20,7 +22,11 @@ func main() {
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "employee-service ", log.LstdFlags|log.LUTC)
-	repo := NewMemoryRepository()
+	repo, closeRepo, err := buildRepository(logger)
+	if err != nil {
+		logger.Fatalf("initialize repository: %v", err)
+	}
+	defer closeRepo()
 	service := NewEmployeeService(repo)
 
 	grpcListener, err := listenGRPC(*grpcAddr)
@@ -69,4 +75,58 @@ func main() {
 	case <-shutdownCtx.Done():
 		grpcServer.Stop()
 	}
+}
+
+func buildRepository(logger *log.Logger) (EmployeeRepository, func(), error) {
+	host := os.Getenv("DB_HOST")
+	if host == "" {
+		logger.Printf("DB_HOST is not set; using in-memory repository")
+		return NewMemoryRepository(), func() {}, nil
+	}
+
+	port := envOrDefault("DB_PORT", "5432")
+	name := envOrDefault("DB_NAME", "employees")
+	user := envOrDefault("DB_USER", "employee_user")
+	password := os.Getenv("DB_PASSWORD")
+	sslmode := envOrDefault("DB_SSLMODE", "disable")
+	dsn := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
+		host, port, name, user, password, sslmode)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open PostgreSQL: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(30 * time.Minute)
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		if err := db.PingContext(ctx); err == nil {
+			break
+		} else if ctx.Err() != nil {
+			_ = db.Close()
+			return nil, nil, fmt.Errorf("wait for PostgreSQL: %w", ctx.Err())
+		}
+		<-ticker.C
+	}
+	logger.Printf("connected to PostgreSQL at %s:%s database=%s", host, port, name)
+
+	repo, err := NewPostgresRepository(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, nil, err
+	}
+	return repo, func() { _ = db.Close() }, nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
