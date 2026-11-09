@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/go-kit/kit v0.13.0
+	github.com/lib/pq v1.10.9
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 )
