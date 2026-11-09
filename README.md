@@ -141,6 +141,7 @@ grpcurl -plaintext -import-path . -proto employee.proto \
 
 - `.github/workflows/ci.yml` проверяет сборку, тесты с race detector, coverage, `go vet`, `govulncheck` и `gosec`.
 - `.github/workflows/docker.yml` собирает multi-stage Docker image и публикует его в Docker Hub при наличии secrets `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`.
+- `.github/workflows/docker-integration.yml` поднимает Compose-стек, проверяет создание/чтение/изменение сотрудника, проверяет строку в PostgreSQL и сохранность данных после пересоздания контейнеров.
 
 ## Отчёты
 
