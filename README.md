@@ -70,7 +70,7 @@ docker compose exec db psql -U employee_user -d employees \
 Проверить сетевое имя БД из отдельного контейнера в той же сети:
 
 ```bash
-docker run --rm --network devops-lab_6-7_appnet postgres:16 \
+docker run --rm --network appnet postgres:16 \
   pg_isready -h db -p 5432 -U employee_user -d employees
 ```
 
