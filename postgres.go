@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -43,7 +44,7 @@ func (r *PostgresRepository) Create(e Employee) (string, error) {
 		return "", ErrInvalid
 	}
 	if e.HiredOn == 0 {
-		e.HiredOn = nowUnix()
+		e.HiredOn = time.Now().Unix()
 	}
 	var id int64
 	err := r.db.QueryRow(
