@@ -67,7 +67,9 @@
 				
 				<option value="file5">github.com/DocesForg/devops-lab_6-7/main.go (0.0%)</option>
 				
-				<option value="file6">github.com/DocesForg/devops-lab_6-7/service.go (80.0%)</option>
+				<option value="file6">github.com/DocesForg/devops-lab_6-7/postgres.go (0.0%)</option>
+				
+				<option value="file7">github.com/DocesForg/devops-lab_6-7/service.go (80.0%)</option>
 				
 				</select>
 			</div>
@@ -1187,8 +1189,10 @@ func requestLogging(logger *log.Logger, next http.Handler) http.Handler {
 
 import (
         "context"
+        "database/sql"
         "errors"
         "flag"
+        "fmt"
         "log"
         "net/http"
         "os"
@@ -1205,7 +1209,11 @@ func main() {
         flag.Parse()
 </span>
         <span class="cov0" title="0">logger := log.New(os.Stdout, "employee-service ", log.LstdFlags|log.LUTC)
-        repo := NewMemoryRepository()
+        repo, closeRepo, err := buildRepository(logger)
+        if err != nil </span>{
+                <span class="cov0" title="0">logger.Fatalf("initialize repository: %v", err)
+</span>        }
+        <span class="cov0" title="0">defer closeRepo()
         service := NewEmployeeService(repo)
 </span>
         <span class="cov0" title="0">grpcListener, err := listenGRPC(*grpcAddr)
@@ -1255,9 +1263,153 @@ func main() {
                 <span class="cov0" title="0">grpcServer.Stop()</span>
         }
 }
+
+func buildRepository(logger *log.Logger) (EmployeeRepository, func(), error) {
+        <span class="cov0" title="0">host := os.Getenv("DB_HOST")
+        if host == "" </span>{
+                <span class="cov0" title="0">logger.Printf("DB_HOST is not set; using in-memory repository")
+                return NewMemoryRepository(), func() </span>{<span class="cov0" title="0"></span>}, nil
+        }
+
+        <span class="cov0" title="0">port := envOrDefault("DB_PORT", "5432")
+        name := envOrDefault("DB_NAME", "employees")
+        user := envOrDefault("DB_USER", "employee_user")
+        password := os.Getenv("DB_PASSWORD")
+        sslmode := envOrDefault("DB_SSLMODE", "disable")
+        dsn := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
+                host, port, name, user, password, sslmode)
+</span>
+        <span class="cov0" title="0">db, err := sql.Open("postgres", dsn)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, nil, fmt.Errorf("open PostgreSQL: %w", err)
+</span>        }
+
+        <span class="cov0" title="0">ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+        defer cancel()
+        db.SetMaxOpenConns(10)
+        db.SetMaxIdleConns(5)
+        db.SetConnMaxLifetime(30 * time.Minute)
+</span>
+        <span class="cov0" title="0">ticker := time.NewTicker(time.Second)
+        defer ticker.Stop()
+        for </span>{
+                <span class="cov0" title="0">if err := db.PingContext(ctx); err == nil </span>{
+                        <span class="cov0" title="0">break</span>
+                } else <span class="cov0" title="0">if ctx.Err() != nil </span>{
+                        <span class="cov0" title="0">_ = db.Close()
+                        return nil, nil, fmt.Errorf("wait for PostgreSQL: %w", ctx.Err())
+</span>                }
+                <span class="cov0" title="0">&lt;-ticker.C</span>
+        }
+        <span class="cov0" title="0">logger.Printf("connected to PostgreSQL at %s:%s database=%s", host, port, name)
+</span>
+        <span class="cov0" title="0">repo, err := NewPostgresRepository(db)
+        if err != nil </span>{
+                <span class="cov0" title="0">_ = db.Close()
+                return nil, nil, err
+</span>        }
+        <span class="cov0" title="0">return repo, func() </span>{ <span class="cov0" title="0">_ = db.Close() }</span>, nil
+}
+
+func envOrDefault(key, fallback string) string {
+        <span class="cov0" title="0">if value := os.Getenv(key); value != "" </span>{
+                <span class="cov0" title="0">return value
+</span>        }
+        <span class="cov0" title="0">return fallback</span>
+}
 </pre>
 		
 		<pre class="file" id="file6" style="display: none">package main
+
+import (
+        "database/sql"
+        "errors"
+        "fmt"
+        "strings"
+        "time"
+
+        _ "github.com/lib/pq"
+)
+
+// PostgresRepository stores employees in PostgreSQL.
+type PostgresRepository struct {
+        db *sql.DB
+}
+
+func NewPostgresRepository(db *sql.DB) (*PostgresRepository, error) {
+        <span class="cov0" title="0">if db == nil </span>{
+                <span class="cov0" title="0">return nil, errors.New("postgres database connection is nil")
+</span>        }
+        <span class="cov0" title="0">repo := &amp;PostgresRepository{db: db}
+        if err := repo.createSchema(); err != nil </span>{
+                <span class="cov0" title="0">return nil, fmt.Errorf("create employees table: %w", err)
+</span>        }
+        <span class="cov0" title="0">return repo, nil</span>
+}
+
+func (r *PostgresRepository) createSchema() error {
+        <span class="cov0" title="0">const query = `
+CREATE TABLE IF NOT EXISTS employees (
+    id BIGSERIAL PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    position TEXT NOT NULL,
+    salary DOUBLE PRECISION NOT NULL CHECK (salary &gt;= 0),
+    hired_on BIGINT NOT NULL
+)`
+        _, err := r.db.Exec(query)
+        return err
+</span>}
+
+func (r *PostgresRepository) Create(e Employee) (string, error) {
+        <span class="cov0" title="0">if strings.TrimSpace(e.FullName) == "" || strings.TrimSpace(e.Position) == "" || e.Salary &lt; 0 </span>{
+                <span class="cov0" title="0">return "", ErrInvalid
+</span>        }
+        <span class="cov0" title="0">if e.HiredOn == 0 </span>{
+                <span class="cov0" title="0">e.HiredOn = time.Now().Unix()
+</span>        }
+        <span class="cov0" title="0">var id int64
+        err := r.db.QueryRow(
+                `INSERT INTO employees (full_name, position, salary, hired_on)
+                 VALUES ($1, $2, $3, $4) RETURNING id`,
+                e.FullName, e.Position, e.Salary, e.HiredOn,
+        ).Scan(&amp;id)
+        if err != nil </span>{
+                <span class="cov0" title="0">return "", fmt.Errorf("insert employee: %w", err)
+</span>        }
+        <span class="cov0" title="0">return fmt.Sprint(id), nil</span>
+}
+
+func (r *PostgresRepository) GetByID(id string) (Employee, error) {
+        <span class="cov0" title="0">var e Employee
+        err := r.db.QueryRow(
+                `SELECT id, full_name, position, salary, hired_on FROM employees WHERE id = $1`, id,
+        ).Scan(&amp;e.ID, &amp;e.FullName, &amp;e.Position, &amp;e.Salary, &amp;e.HiredOn)
+        if errors.Is(err, sql.ErrNoRows) </span>{
+                <span class="cov0" title="0">return Employee{}, ErrNotFound
+</span>        }
+        <span class="cov0" title="0">if err != nil </span>{
+                <span class="cov0" title="0">return Employee{}, fmt.Errorf("select employee: %w", err)
+</span>        }
+        <span class="cov0" title="0">return e, nil</span>
+}
+
+func (r *PostgresRepository) ChangePosition(id, position string) error {
+        <span class="cov0" title="0">result, err := r.db.Exec(`UPDATE employees SET position = $1 WHERE id = $2`, position, id)
+        if err != nil </span>{
+                <span class="cov0" title="0">return fmt.Errorf("update employee position: %w", err)
+</span>        }
+        <span class="cov0" title="0">affected, err := result.RowsAffected()
+        if err != nil </span>{
+                <span class="cov0" title="0">return fmt.Errorf("read update result: %w", err)
+</span>        }
+        <span class="cov0" title="0">if affected == 0 </span>{
+                <span class="cov0" title="0">return ErrNotFound
+</span>        }
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package main
 
 import (
         "context"
