@@ -14,6 +14,22 @@ jobs:
   build-and-test:
     name: Build, test and security checks (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: "host=localhost port=5432 dbname=employees user=employee_user password=ci_password sslmode=disable"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: employees
+          POSTGRES_USER: employee_user
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U employee_user -d employees"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     strategy:
       fail-fast: false
       matrix:
